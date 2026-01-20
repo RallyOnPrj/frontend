@@ -7,6 +7,8 @@ const KAKAO_CLIENT_ID = process.env.NEXT_PUBLIC_KAKAO_CLIENT_ID ?? "";
 const KAKAO_REDIRECT_URI = process.env.NEXT_PUBLIC_KAKAO_REDIRECT_URI ?? "";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const DUMMY_REDIRECT_URI =
+  process.env.NEXT_PUBLIC_DUMMY_REDIRECT_URI ?? "";
 
 // 개발 환경 확인
 const isDev = process.env.NODE_ENV === "development";
@@ -18,7 +20,7 @@ function debugLog(...args: unknown[]): void {
   }
 }
 
-export type AuthProvider = "GOOGLE" | "KAKAO";
+export type AuthProvider = "GOOGLE" | "KAKAO" | "DUMMY";
 
 // 사용자 정보 타입
 export interface User {
@@ -135,8 +137,20 @@ export function getKakaoOAuthURL(
 }
 
 function getRedirectUriByProvider(provider: AuthProvider): string {
-  const redirectUri =
-    provider === "GOOGLE" ? GOOGLE_REDIRECT_URI : KAKAO_REDIRECT_URI;
+  let redirectUri = "";
+  switch (provider) {
+    case "GOOGLE":
+      redirectUri = GOOGLE_REDIRECT_URI;
+      break;
+    case "KAKAO":
+      redirectUri = KAKAO_REDIRECT_URI;
+      break;
+    case "DUMMY":
+      redirectUri = DUMMY_REDIRECT_URI;
+      break;
+    default:
+      redirectUri = "";
+  }
 
   // 디버깅: 리다이렉트 URI 값 확인 (개발 환경에서만)
   debugLog(`[Auth] getRedirectUriByProvider(${provider}):`, redirectUri);
