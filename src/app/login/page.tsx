@@ -32,6 +32,12 @@ export default function Login() {
     setShowDummyInput(true);
   };
 
+  const cancelDummyLogin = () => {
+    setDummyError("");
+    setDummyCode("");
+    setShowDummyInput(false);
+  };
+
   const submitDummyLogin = async () => {
     setDummyError("");
     const code = dummyCode.trim();
@@ -41,49 +47,54 @@ export default function Login() {
     }
 
     setDummySubmitting(true);
-    const redirectUri = getOAuthRedirectUri("DUMMY");
-    const result = await loginWithOAuth({
-      provider: "DUMMY",
-      authorizationCode: code,
-      redirectUri,
-    });
+    try {
+      const redirectUri = getOAuthRedirectUri("DUMMY");
+      const result = await loginWithOAuth({
+        provider: "DUMMY",
+        authorizationCode: code,
+        redirectUri,
+      });
 
-    if (!result.success) {
-      setDummyError(result.error || "테스트 로그인에 실패했습니다.");
+      if (!result.success) {
+        setDummyError(result.error || "테스트 로그인에 실패했습니다.");
+        setDummySubmitting(false);
+        return;
+      }
+
+      const userData = await getCurrentUser(result.accessToken);
+      if (!userData) {
+        setDummyError("사용자 정보를 가져올 수 없습니다.");
+        setDummySubmitting(false);
+        return;
+      }
+
+      if (userData.status === "PENDING") {
+        setDummySubmitting(false);
+        router.push("/account/profile");
+        return;
+      }
+
+      const returnTo = sessionStorage.getItem("oauth_return_to");
+      if (returnTo) {
+        sessionStorage.removeItem("oauth_return_to");
+        setDummySubmitting(false);
+        router.push(returnTo);
+        return;
+      }
+      router.push("/");
+    } catch (error) {
+      setDummyError(
+        error instanceof Error ? error.message : "테스트 로그인에 실패했습니다."
+      );
+
+
+    } finally {
       setDummySubmitting(false);
-      return;
-    }
 
-    const userData = await getCurrentUser(result.accessToken);
-    if (!userData) {
-      setDummyError("사용자 정보를 가져올 수 없습니다.");
-      setDummySubmitting(false);
-      return;
     }
-
-    if (userData.status === "PENDING") {
-      setDummySubmitting(false);
-      router.push("/account/profile");
-      return;
-    }
-
-    const returnTo = sessionStorage.getItem("oauth_return_to");
-    if (returnTo) {
-      sessionStorage.removeItem("oauth_return_to");
-      setDummySubmitting(false);
-      router.push(returnTo);
-      return;
-    }
-
-    setDummySubmitting(false);
-    router.push("/");
   };
 
-  const cancelDummyLogin = () => {
-    setDummyError("");
-    setDummyCode("");
-    setShowDummyInput(false);
-  };
+
 
   return (
     <div className="min-h-screen bg-background">
