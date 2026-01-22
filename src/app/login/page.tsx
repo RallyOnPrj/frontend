@@ -1,8 +1,23 @@
 "use client";
 
-import { getKakaoOAuthURL } from "@/lib/auth";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  getCurrentUser,
+  getKakaoOAuthURL,
+  getOAuthRedirectUri,
+  loginWithOAuth,
+} from "@/lib/auth";
 
 export default function Login() {
+  const router = useRouter();
+  const [dummyError, setDummyError] = useState("");
+  const [showDummyInput, setShowDummyInput] = useState(false);
+  const [dummyCode, setDummyCode] = useState("");
+  const [dummySubmitting, setDummySubmitting] = useState(false);
+  const enableDummyLogin =
+    process.env.NEXT_PUBLIC_ENABLE_DUMMY_LOGIN === "true";
+
   const handleKakaoLogin = () => {
     // 기본 로그인 (기존 세션 사용)
     window.location.href = getKakaoOAuthURL("/");
@@ -12,6 +27,74 @@ export default function Login() {
     // 다른 계정으로 로그인 (매번 로그인 화면 표시)
     window.location.href = getKakaoOAuthURL("/", true);
   };
+
+  const handleDummyLogin = async () => {
+    setShowDummyInput(true);
+  };
+
+  const cancelDummyLogin = () => {
+    setDummyError("");
+    setDummyCode("");
+    setShowDummyInput(false);
+  };
+
+  const submitDummyLogin = async () => {
+    setDummyError("");
+    const code = dummyCode.trim();
+    if (!code) {
+      setDummyError("AuthorizationCode를 입력해 주세요.");
+      return;
+    }
+
+    setDummySubmitting(true);
+    try {
+      const redirectUri = getOAuthRedirectUri("DUMMY");
+      const result = await loginWithOAuth({
+        provider: "DUMMY",
+        authorizationCode: code,
+        redirectUri,
+      });
+
+      if (!result.success) {
+        setDummyError(result.error || "테스트 로그인에 실패했습니다.");
+        setDummySubmitting(false);
+        return;
+      }
+
+      const userData = await getCurrentUser(result.accessToken);
+      if (!userData) {
+        setDummyError("사용자 정보를 가져올 수 없습니다.");
+        setDummySubmitting(false);
+        return;
+      }
+
+      if (userData.status === "PENDING") {
+        setDummySubmitting(false);
+        router.push("/account/profile");
+        return;
+      }
+
+      const returnTo = sessionStorage.getItem("oauth_return_to");
+      if (returnTo) {
+        sessionStorage.removeItem("oauth_return_to");
+        setDummySubmitting(false);
+        router.push(returnTo);
+        return;
+      }
+      router.push("/");
+    } catch (error) {
+      setDummyError(
+        error instanceof Error ? error.message : "테스트 로그인에 실패했습니다."
+      );
+
+
+    } finally {
+      setDummySubmitting(false);
+
+    }
+  };
+
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -71,6 +154,58 @@ export default function Login() {
                 </svg>
                 다른 계정으로 로그인
               </button>
+
+              {enableDummyLogin && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleDummyLogin}
+                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-dashed border-amber-400 bg-amber-200 px-4 py-3 text-sm font-semibold text-amber-900 shadow-sm transition-all hover:bg-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-400/70"
+                  >
+                    <span>테스트 계정으로 로그인 (local)</span>
+                    <span className="rounded-full bg-amber-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                      DEV ONLY
+                    </span>
+                  </button>
+
+                  {showDummyInput && (
+                    <div className="rounded-xl border border-amber-400 bg-amber-100/90 p-3">
+                      <label className="block text-xs font-semibold text-amber-900">
+                        AuthorizationCode
+                      </label>
+                      <input
+                        value={dummyCode}
+                        onChange={(event) => setDummyCode(event.target.value)}
+                        placeholder="dummy1"
+                        className="mt-2 w-full rounded-lg border border-amber-400 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        autoFocus
+                      />
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={submitDummyLogin}
+                          disabled={dummySubmitting}
+                          className="flex-1 rounded-lg bg-amber-400 px-3 py-2 text-xs font-semibold text-gray-900 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {dummySubmitting ? "로그인 중..." : "로그인"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelDummyLogin}
+                          disabled={dummySubmitting}
+                          className="flex-1 rounded-lg border border-amber-400 px-3 py-2 text-xs font-semibold text-amber-900 transition hover:bg-amber-200/70 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {enableDummyLogin && dummyError && (
+                <p className="text-xs text-red-400">{dummyError}</p>
+              )}
             </div>
 
             {/* 안내 문구 */}
