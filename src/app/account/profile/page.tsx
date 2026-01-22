@@ -43,6 +43,72 @@ export default function AccountProfilePage() {
   const [districts, setDistricts] = useState<District[]>([]);
   const [isLoadingDistricts, setIsLoadingDistricts] = useState(false);
 
+  // 날짜 유효성 검증 함수
+  const isValidDate = (year: number, month: number, day: number): boolean => {
+    const currentYear = new Date().getFullYear();
+    
+    // 년도 검증: 1900 ~ 현재 년도
+    if (year < 1900 || year > currentYear) {
+      return false;
+    }
+    
+    // 월 검증: 01 ~ 12
+    if (month < 1 || month > 12) {
+      return false;
+    }
+    
+    // 일 검증: 01 ~ 해당 월의 말일
+    const daysInMonth = new Date(year, month, 0).getDate();
+    if (day < 1 || day > daysInMonth) {
+      return false;
+    }
+    
+    return true;
+  };
+
+  // 생년월일 문자열 파싱 및 검증
+  const parseAndValidateBirthDate = (dateStr: string): {
+    isValid: boolean;
+    error?: string;
+    year?: number;
+    month?: number;
+    day?: number;
+  } => {
+    if (!dateStr.trim()) {
+      return { isValid: false, error: "생년월일은 필수입니다." };
+    }
+
+    // YYYY-MM-DD 형식 검증
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return { isValid: false, error: "생년월일 형식이 올바르지 않습니다. (YYYY-MM-DD)" };
+    }
+
+    const parts = dateStr.split("-");
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const day = parseInt(parts[2], 10);
+
+    // 숫자 변환 검증
+    if (isNaN(year) || isNaN(month) || isNaN(day)) {
+      return { isValid: false, error: "생년월일은 숫자로만 입력해주세요." };
+    }
+
+    // 날짜 유효성 검증
+    if (!isValidDate(year, month, day)) {
+      const currentYear = new Date().getFullYear();
+      if (year < 1900 || year > currentYear) {
+        return { isValid: false, error: `년도는 1900년부터 ${currentYear}년까지 입력 가능합니다.` };
+      }
+      if (month < 1 || month > 12) {
+        return { isValid: false, error: "월은 01부터 12까지 입력 가능합니다." };
+      }
+      const daysInMonth = new Date(year, month, 0).getDate();
+      return { isValid: false, error: `${year}년 ${month}월은 01일부터 ${daysInMonth}일까지 입력 가능합니다.` };
+    }
+
+    return { isValid: true, year, month, day };
+  };
+
   const formatBirthDate = (raw: string) => {
     const digits = raw.replace(/\D/g, "").slice(0, 8);
     const y = digits.slice(0, 4);
@@ -68,10 +134,13 @@ export default function AccountProfilePage() {
   const validationError = useMemo(() => {
     if (!form.nickname.trim()) return "닉네임은 필수입니다.";
     if (!form.districtId.trim()) return "지역은 필수입니다.";
-    if (!form.birthDate.trim()) return "생년월일은 필수입니다.";
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.birthDate)) {
-      return "생년월일 형식이 올바르지 않습니다. (YYYY-MM-DD)";
+    
+    // 생년월일 검증
+    const birthValidation = parseAndValidateBirthDate(form.birthDate);
+    if (!birthValidation.isValid) {
+      return birthValidation.error || "생년월일이 올바르지 않습니다.";
     }
+    
     // gender가 MALE 또는 FEMALE인지 확인
     if (form.gender && !["MALE", "FEMALE"].includes(form.gender)) {
       return "성별은 남성 또는 여성만 선택 가능합니다.";
@@ -169,17 +238,36 @@ export default function AccountProfilePage() {
     // grade: localGrade나 nationalGrade 중 하나를 선택 (우선순위: nationalGrade > localGrade)
     const grade = form.nationalGrade || form.localGrade || undefined;
 
-    const result = await submitUserProfile({
+    // districtId 검증
+    const districtIdNum = Number(form.districtId);
+    if (isNaN(districtIdNum) || districtIdNum <= 0) {
+      setErrorMessage("유효한 지역을 선택해주세요.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    // 요청 데이터 준비 및 로깅
+    const requestPayload = {
       nickname: form.nickname.trim(),
-      districtId: Number(form.districtId),
+      districtId: districtIdNum,
       grade,
       birth,
       gender: form.gender.trim(),
-    });
+    };
+
+    console.log("[AccountProfile] Submitting profile:", requestPayload);
+
+    const result = await submitUserProfile(requestPayload);
     setIsSubmitting(false);
 
     if (!result.success) {
-      setErrorMessage(result.error || "프로필 저장에 실패했습니다.");
+      // 500 에러인 경우 더 명확한 메시지 표시
+      const errorMsg = result.error || "프로필 저장에 실패했습니다.";
+      setErrorMessage(
+        errorMsg.includes("서버 오류") || errorMsg.includes("500")
+          ? "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요. 문제가 계속되면 관리자에게 문의해주세요."
+          : errorMsg
+      );
       return;
     }
 
@@ -324,18 +412,17 @@ export default function AccountProfilePage() {
                 생년월일 <span className="text-primary">*</span>
               </label>
               <input
+                type="date"
                 value={form.birthDate}
                 onChange={(e) => {
                   setForm((prev) => ({
                     ...prev,
-                    birthDate: formatBirthDate(e.target.value),
+                    birthDate: e.target.value,
                   }));
                 }}
+                min="1900-01-01"
+                max={new Date().toISOString().split("T")[0]}
                 className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground shadow-sm placeholder:text-foreground-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
-                placeholder="YYYYMMDD"
-                inputMode="numeric"
-                pattern="\d*"
-                maxLength={10}
               />
               <p className="mt-2 text-xs text-foreground-muted">
                 공개 정책은 추후 설정할 수 있어요.

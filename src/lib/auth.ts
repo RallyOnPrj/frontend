@@ -358,7 +358,21 @@ export async function submitUserProfile(
   const url = `${API_URL}/users/me/profile`;
   console.log("[API] POST", url);
   console.log("[API] Request payload:", payload);
-  console.log("[API] Request body (JSON):", JSON.stringify(payload));
+  
+  // grade가 undefined이면 제거 (선택사항이므로)
+  const requestBody: Record<string, unknown> = {
+    nickname: payload.nickname,
+    districtId: payload.districtId,
+    birth: payload.birth,
+    gender: payload.gender,
+  };
+  
+  if (payload.grade) {
+    requestBody.grade = payload.grade;
+  }
+  
+  const requestBodyJson = JSON.stringify(requestBody);
+  console.log("[API] Request body (JSON):", requestBodyJson);
 
   const token = getAccessToken();
   const headers: HeadersInit = {
@@ -373,11 +387,15 @@ export async function submitUserProfile(
     let response = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify(payload),
+      body: requestBodyJson,
       credentials: "include",
     });
 
     console.log("[API] Response status:", response.status, response.statusText);
+    console.log(
+      "[API] Response headers:",
+      Object.fromEntries(response.headers.entries())
+    );
 
     // 401 에러 발생 시 Refresh Token으로 재발급 시도
     if (response.status === 401 && token) {
@@ -391,13 +409,17 @@ export async function submitUserProfile(
         response = await fetch(url, {
           method: "POST",
           headers,
-          body: JSON.stringify(payload),
+          body: requestBodyJson,
           credentials: "include",
         });
         console.log(
           "[API] Retry response status:",
           response.status,
           response.statusText
+        );
+        console.log(
+          "[API] Retry response headers:",
+          Object.fromEntries(response.headers.entries())
         );
       } else {
         // Refresh 실패
@@ -409,19 +431,86 @@ export async function submitUserProfile(
     }
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      // 응답 본문 읽기 시도
+      let errorData: unknown = {};
+      const contentType = response.headers.get("content-type");
+      
+      try {
+        if (contentType?.includes("application/json")) {
+          errorData = await response.json();
+        } else {
+          const text = await response.text();
+          console.error("[API] Error response (text):", text);
+          errorData = { message: text || "알 수 없는 오류가 발생했습니다." };
+        }
+      } catch (parseError) {
+        console.error("[API] Failed to parse error response:", parseError);
+        errorData = { message: "서버 응답을 파싱할 수 없습니다." };
+      }
+      
       console.error("[API] Error response:", errorData);
+      console.error("[API] Error details:", {
+        status: response.status,
+        statusText: response.statusText,
+        errorData,
+        requestPayload: payload,
+      });
+      
+      // 에러 메시지 추출
+      let errorMessage = "프로필 저장에 실패했습니다.";
+      if (errorData && typeof errorData === "object") {
+        const errorObj = errorData as Record<string, unknown>;
+        if (typeof errorObj.message === "string") {
+          errorMessage = errorObj.message;
+        } else if (typeof errorObj.error === "string") {
+          errorMessage = errorObj.error;
+        } else if (Array.isArray(errorObj.errors)) {
+          errorMessage = errorObj.errors.join(", ");
+        }
+      }
+      
       return {
         success: false,
-        error: errorData.message || "프로필 저장에 실패했습니다.",
+        error: errorMessage,
       };
     }
 
-    console.log("[API] Profile submission success");
+    // 성공 응답 본문도 확인
+    try {
+      const responseData = await response.json().catch(() => null);
+      if (responseData) {
+        console.log("[API] Profile submission success response:", responseData);
+      }
+    } catch (e) {
+      // 응답 본문이 없어도 성공으로 처리
+      console.log("[API] Profile submission success (no response body)");
+    }
+    
     return { success: true };
   } catch (error) {
     console.error("[API] Submit profile error:", error);
-    return { success: false, error: "서버와 연결할 수 없습니다." };
+    console.error("[API] Error details:", {
+      error,
+      errorName: error instanceof Error ? error.name : "Unknown",
+      errorMessage: error instanceof Error ? error.message : String(error),
+      url,
+      payload,
+    });
+    
+    // 네트워크 에러인지 확인
+    if (error instanceof Error) {
+      if (error.message.includes("Failed to fetch")) {
+        return {
+          success: false,
+          error: "서버에 연결할 수 없습니다. 네트워크 연결을 확인해주세요.",
+        };
+      }
+    }
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "서버와 연결할 수 없습니다.",
+    };
   }
 }
 

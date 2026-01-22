@@ -50,15 +50,70 @@ function AccountEditContent() {
   const [districts, setDistricts] = useState<District[]>([]);
   const [isLoadingDistricts, setIsLoadingDistricts] = useState(false);
 
-  const formatBirthDate = (raw: string) => {
-    const digits = raw.replace(/\D/g, "").slice(0, 8);
-    const y = digits.slice(0, 4);
-    const m = digits.slice(4, 6);
-    const d = digits.slice(6, 8);
+  // 날짜 유효성 검증 함수
+  const isValidDate = (year: number, month: number, day: number): boolean => {
+    const currentYear = new Date().getFullYear();
+    
+    // 년도 검증: 1900 ~ 현재 년도
+    if (year < 1900 || year > currentYear) {
+      return false;
+    }
+    
+    // 월 검증: 01 ~ 12
+    if (month < 1 || month > 12) {
+      return false;
+    }
+    
+    // 일 검증: 01 ~ 해당 월의 말일
+    const daysInMonth = new Date(year, month, 0).getDate();
+    if (day < 1 || day > daysInMonth) {
+      return false;
+    }
+    
+    return true;
+  };
 
-    if (digits.length <= 4) return y;
-    if (digits.length <= 6) return `${y}-${m}`;
-    return `${y}-${m}-${d}`;
+  // 생년월일 문자열 파싱 및 검증
+  const parseAndValidateBirthDate = (dateStr: string): {
+    isValid: boolean;
+    error?: string;
+    year?: number;
+    month?: number;
+    day?: number;
+  } => {
+    if (!dateStr.trim()) {
+      return { isValid: false, error: "생년월일은 필수입니다." };
+    }
+
+    // YYYY-MM-DD 형식 검증
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return { isValid: false, error: "생년월일 형식이 올바르지 않습니다. (YYYY-MM-DD)" };
+    }
+
+    const parts = dateStr.split("-");
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const day = parseInt(parts[2], 10);
+
+    // 숫자 변환 검증
+    if (isNaN(year) || isNaN(month) || isNaN(day)) {
+      return { isValid: false, error: "생년월일은 숫자로만 입력해주세요." };
+    }
+
+    // 날짜 유효성 검증
+    if (!isValidDate(year, month, day)) {
+      const currentYear = new Date().getFullYear();
+      if (year < 1900 || year > currentYear) {
+        return { isValid: false, error: `년도는 1900년부터 ${currentYear}년까지 입력 가능합니다.` };
+      }
+      if (month < 1 || month > 12) {
+        return { isValid: false, error: "월은 01부터 12까지 입력 가능합니다." };
+      }
+      const daysInMonth = new Date(year, month, 0).getDate();
+      return { isValid: false, error: `${year}년 ${month}월은 01일부터 ${daysInMonth}일까지 입력 가능합니다.` };
+    }
+
+    return { isValid: true, year, month, day };
   };
 
   const LOCAL_GRADES = ["초심", "D", "C", "B", "A"] as const;
@@ -75,10 +130,13 @@ function AccountEditContent() {
   const validationError = useMemo(() => {
     if (!form.nickname.trim()) return "닉네임은 필수입니다.";
     if (!form.districtId.trim()) return "지역은 필수입니다.";
-    if (!form.birthDate.trim()) return "생년월일은 필수입니다.";
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.birthDate)) {
-      return "생년월일 형식이 올바르지 않습니다. (YYYY-MM-DD)";
+    
+    // 생년월일 검증
+    const birthValidation = parseAndValidateBirthDate(form.birthDate);
+    if (!birthValidation.isValid) {
+      return birthValidation.error || "생년월일이 올바르지 않습니다.";
     }
+    
     if (!form.gender.trim()) return "성별은 필수입니다.";
     // gender가 MALE 또는 FEMALE인지 확인
     if (form.gender && !["MALE", "FEMALE"].includes(form.gender)) {
@@ -354,18 +412,17 @@ function AccountEditContent() {
                 생년월일 <span className="text-primary">*</span>
               </label>
               <input
+                type="date"
                 value={form.birthDate}
                 onChange={(e) => {
                   setForm((prev) => ({
                     ...prev,
-                    birthDate: formatBirthDate(e.target.value),
+                    birthDate: e.target.value,
                   }));
                 }}
+                min="1900-01-01"
+                max={new Date().toISOString().split("T")[0]}
                 className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground shadow-sm placeholder:text-foreground-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
-                placeholder="YYYYMMDD"
-                inputMode="numeric"
-                pattern="\d*"
-                maxLength={10}
               />
               <p className="mt-2 text-xs text-foreground-muted">
                 공개 정책은 추후 설정할 수 있어요.
