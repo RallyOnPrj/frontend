@@ -43,6 +43,16 @@ export default function AccountProfilePage() {
   const [districts, setDistricts] = useState<District[]>([]);
   const [isLoadingDistricts, setIsLoadingDistricts] = useState(false);
 
+  const handleProvinceChange = (provinceId: string) => {
+    setDistricts([]);
+    setIsLoadingDistricts(false);
+    setForm((prev) => ({
+      ...prev,
+      provinceId,
+      districtId: "",
+    }));
+  };
+
   const formatBirthDate = (raw: string) => {
     const digits = raw.replace(/\D/g, "").slice(0, 8);
     const y = digits.slice(0, 4);
@@ -115,8 +125,6 @@ export default function AccountProfilePage() {
   // 시/도 선택 시 시/군/구 목록 로드
   useEffect(() => {
     if (!form.provinceId) {
-      setDistricts([]);
-      setForm((prev) => ({ ...prev, districtId: "" }));
       return;
     }
 
@@ -133,8 +141,6 @@ export default function AccountProfilePage() {
         if (!abortController.signal.aborted) {
           setDistricts(districtsList);
           setIsLoadingDistricts(false);
-          // 시/도 변경 시 districtId 초기화
-          setForm((prev) => ({ ...prev, districtId: "" }));
         }
       } catch (error) {
         // AbortError는 정상적인 취소이므로 무시
@@ -222,9 +228,7 @@ export default function AccountProfilePage() {
                 <div>
                   <Select
                     value={form.provinceId}
-                    onChange={(v) =>
-                      setForm((prev) => ({ ...prev, provinceId: v }))
-                    }
+                    onChange={handleProvinceChange}
                     placeholder="시/도 선택"
                     options={[
                       { value: "", label: "시/도 선택" },

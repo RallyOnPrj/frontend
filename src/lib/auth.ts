@@ -447,7 +447,7 @@ export async function getCurrentUser(
   accessToken?: string
 ): Promise<User | null> {
   // 액세스 토큰이 제공되지 않으면 저장된 토큰 사용
-  let token = accessToken || getAccessToken();
+  const token = accessToken || getAccessToken();
 
   // 토큰이 없거나 빈 문자열이면 API 호출하지 않음 (비로그인 상태)
   if (!token || !token.trim()) {

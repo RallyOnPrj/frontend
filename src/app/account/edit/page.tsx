@@ -50,6 +50,16 @@ function AccountEditContent() {
   const [districts, setDistricts] = useState<District[]>([]);
   const [isLoadingDistricts, setIsLoadingDistricts] = useState(false);
 
+  const handleProvinceChange = (provinceId: string) => {
+    setDistricts([]);
+    setIsLoadingDistricts(false);
+    setForm((prev) => ({
+      ...prev,
+      provinceId,
+      districtId: "",
+    }));
+  };
+
   const formatBirthDate = (raw: string) => {
     const digits = raw.replace(/\D/g, "").slice(0, 8);
     const y = digits.slice(0, 4);
@@ -108,8 +118,6 @@ function AccountEditContent() {
   // 시/도 선택 시 시/군/구 목록 로드
   useEffect(() => {
     if (!form.provinceId) {
-      setDistricts([]);
-      setForm((prev) => ({ ...prev, districtId: "" }));
       return;
     }
 
@@ -252,9 +260,7 @@ function AccountEditContent() {
                 <div>
                   <Select
                     value={form.provinceId}
-                    onChange={(v) =>
-                      setForm((prev) => ({ ...prev, provinceId: v }))
-                    }
+                    onChange={handleProvinceChange}
                     placeholder="시/도 선택"
                     options={[
                       { value: "", label: "시/도 선택" },
