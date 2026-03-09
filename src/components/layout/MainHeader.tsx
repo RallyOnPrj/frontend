@@ -43,13 +43,13 @@ export default function MainHeader() {
           onClick={() => setIsMenuOpen(false)}
         >
           <img
-            src="/drive-favicon.svg"
-            alt="Drive Icon"
+            src="/rallyon-favicon.svg"
+            alt="RallyOn Icon"
             className="h-10 w-10 sm:hidden"
           />
           <img
-            src="/drive-wordmark.svg"
-            alt="Drive Wordmark"
+            src="/rallyon-wordmark.svg"
+            alt="RallyOn Wordmark"
             className="hidden h-8 w-auto sm:block dark:brightness-0 dark:invert"
           />
         </Link>
