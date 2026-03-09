@@ -49,8 +49,8 @@ export default function Home() {
 
         {/* 로고 */}
         <img
-          src="/rallyon-logo.svg"
-          alt="RallyOn Logo"
+          src="/drive-logo.svg"
+          alt="Drive Logo"
           className="mb-8 h-24 w-auto drop-shadow-sm sm:h-32 lg:h-44 dark:brightness-0 dark:invert"
         />
 
