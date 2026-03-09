@@ -12,7 +12,8 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const THEME_KEY = "drive-theme";
+const THEME_KEY = "rallyon-theme";
+const LEGACY_THEME_KEY = "drive-theme";
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("light");
@@ -22,9 +23,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMounted(true);
     const savedTheme = localStorage.getItem(THEME_KEY) as Theme | null;
-    
-    if (savedTheme) {
-      setThemeState(savedTheme);
+    const legacyTheme = localStorage.getItem(LEGACY_THEME_KEY) as Theme | null;
+    const initialTheme = savedTheme ?? legacyTheme;
+
+    if (initialTheme) {
+      setThemeState(initialTheme);
+      localStorage.setItem(THEME_KEY, initialTheme);
+      if (!savedTheme && legacyTheme) {
+        localStorage.removeItem(LEGACY_THEME_KEY);
+      }
     } else {
       // 시스템 다크 모드 감지
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -78,5 +85,3 @@ export function useTheme() {
   }
   return context;
 }
-
-

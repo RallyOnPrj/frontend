@@ -21,13 +21,13 @@ export default function Login() {
             {/* 로고 */}
             <div className="mb-8 flex flex-col items-center justify-center gap-4">
               <img
-                src="/drive-favicon.svg"
-                alt="Drive Icon"
+                src="/rallyon-favicon.svg"
+                alt="RallyOn Icon"
                 className="h-16 w-16"
               />
               <img
-                src="/drive-wordmark.svg"
-                alt="Drive Wordmark"
+                src="/rallyon-wordmark.svg"
+                alt="RallyOn Wordmark"
                 className="h-8 w-auto brightness-0 invert"
               />
             </div>
