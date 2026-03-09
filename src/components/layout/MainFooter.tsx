@@ -8,18 +8,18 @@ export default function MainFooter() {
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <img
-                src="/drive-favicon.svg"
-                alt="Drive Icon"
+                src="/rallyon-favicon.svg"
+                alt="RallyOn Icon"
                 className="h-10 w-10"
               />
               <img
-                src="/drive-wordmark.svg"
-                alt="Drive Wordmark"
+                src="/rallyon-wordmark.svg"
+                alt="RallyOn Wordmark"
                 className="hidden h-8 w-auto sm:block brightness-0 invert"
               />
             </div>
             <p className="text-sm text-foreground-muted">
-              Drive는 대한민국 동호인 스포츠를 응원합니다.
+              RallyOn은 대한민국 동호인 스포츠를 응원합니다.
             </p>
           </div>
 
@@ -103,7 +103,7 @@ export default function MainFooter() {
 
         <div className="mt-12 border-t border-border pt-8">
           <p className="text-center text-sm text-foreground-muted/50">
-            &copy; {new Date().getFullYear()} Drive. All rights reserved.
+            &copy; {new Date().getFullYear()} RallyOn. All rights reserved.
           </p>
         </div>
       </div>

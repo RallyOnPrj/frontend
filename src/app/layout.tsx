@@ -14,10 +14,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Drive - Badminton Tournament Management",
-  description: "Badminton tournament management made easy.",
+  title: "RallyOn - Badminton Tournament Management",
+  description: "RallyOn으로 배드민턴 대회 운영을 더 간편하게 관리하세요.",
   icons: {
-    icon: "/drive-favicon.svg",
+    icon: "/rallyon-favicon.svg",
   },
 };
 
