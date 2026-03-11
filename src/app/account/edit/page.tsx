@@ -108,8 +108,6 @@ function AccountEditContent() {
   // 시/도 선택 시 시/군/구 목록 로드
   useEffect(() => {
     if (!form.provinceId) {
-      setDistricts([]);
-      setForm((prev) => ({ ...prev, districtId: "" }));
       return;
     }
 
@@ -253,7 +251,11 @@ function AccountEditContent() {
                   <Select
                     value={form.provinceId}
                     onChange={(v) =>
-                      setForm((prev) => ({ ...prev, provinceId: v }))
+                      setForm((prev) => ({
+                        ...prev,
+                        provinceId: v,
+                        districtId: "",
+                      }))
                     }
                     placeholder="시/도 선택"
                     options={[

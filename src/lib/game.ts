@@ -96,7 +96,7 @@ interface ApiResponse<T> {
 
 // 인증 헤더 생성
 async function getAuthHeaders(): Promise<HeadersInit> {
-  let token = getAccessToken();
+  const token = getAccessToken();
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",

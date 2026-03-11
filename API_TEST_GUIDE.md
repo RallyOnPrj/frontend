@@ -55,7 +55,7 @@ console.error("Account status error:", error);
 
 #### A. 로그인 플로우 테스트
 
-1. **로그인 버튼 클릭** (Google/Kakao)
+1. **로그인 버튼 클릭** (Kakao)
 2. **OAuth 콜백 페이지** 도달 확인
 3. **Network 탭에서 확인:**
    - `POST /auth/login` 요청 성공 (200)
@@ -112,8 +112,6 @@ has been blocked by CORS policy
 1. Vercel 대시보드 → 프로젝트 → Settings → Environment Variables
 2. 다음 변수들이 올바르게 설정되어 있는지 확인:
    - `NEXT_PUBLIC_API_URL`
-   - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
-   - `NEXT_PUBLIC_GOOGLE_REDIRECT_URI`
    - `NEXT_PUBLIC_KAKAO_CLIENT_ID`
    - `NEXT_PUBLIC_KAKAO_REDIRECT_URI`
 

@@ -115,8 +115,6 @@ export default function AccountProfilePage() {
   // 시/도 선택 시 시/군/구 목록 로드
   useEffect(() => {
     if (!form.provinceId) {
-      setDistricts([]);
-      setForm((prev) => ({ ...prev, districtId: "" }));
       return;
     }
 
@@ -133,8 +131,6 @@ export default function AccountProfilePage() {
         if (!abortController.signal.aborted) {
           setDistricts(districtsList);
           setIsLoadingDistricts(false);
-          // 시/도 변경 시 districtId 초기화
-          setForm((prev) => ({ ...prev, districtId: "" }));
         }
       } catch (error) {
         // AbortError는 정상적인 취소이므로 무시
@@ -223,7 +219,11 @@ export default function AccountProfilePage() {
                   <Select
                     value={form.provinceId}
                     onChange={(v) =>
-                      setForm((prev) => ({ ...prev, provinceId: v }))
+                      setForm((prev) => ({
+                        ...prev,
+                        provinceId: v,
+                        districtId: "",
+                      }))
                     }
                     placeholder="시/도 선택"
                     options={[
