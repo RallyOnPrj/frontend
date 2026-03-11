@@ -43,6 +43,16 @@ export default function AccountProfilePage() {
   const [districts, setDistricts] = useState<District[]>([]);
   const [isLoadingDistricts, setIsLoadingDistricts] = useState(false);
 
+  const handleProvinceChange = (provinceId: string) => {
+    setDistricts([]);
+    setIsLoadingDistricts(false);
+    setForm((prev) => ({
+      ...prev,
+      provinceId,
+      districtId: "",
+    }));
+  };
+
   const formatBirthDate = (raw: string) => {
     const digits = raw.replace(/\D/g, "").slice(0, 8);
     const y = digits.slice(0, 4);
@@ -218,13 +228,7 @@ export default function AccountProfilePage() {
                 <div>
                   <Select
                     value={form.provinceId}
-                    onChange={(v) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        provinceId: v,
-                        districtId: "",
-                      }))
-                    }
+                    onChange={handleProvinceChange}
                     placeholder="시/도 선택"
                     options={[
                       { value: "", label: "시/도 선택" },

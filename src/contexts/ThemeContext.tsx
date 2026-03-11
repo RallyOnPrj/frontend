@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 type Theme = "light" | "dark";
 
@@ -34,7 +40,26 @@ function getInitialTheme(): Theme {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(getInitialTheme);
+  const isHydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+  const [theme, setThemeState] = useState<Theme>(() => {
+    const initialTheme = getInitialTheme();
+    if (typeof window === "undefined") {
+      return initialTheme;
+    }
+
+    const savedTheme = localStorage.getItem(THEME_KEY) as Theme | null;
+    const legacyTheme = localStorage.getItem(LEGACY_THEME_KEY) as Theme | null;
+    if (!savedTheme && legacyTheme) {
+      localStorage.setItem(THEME_KEY, initialTheme);
+      localStorage.removeItem(LEGACY_THEME_KEY);
+    }
+
+    return initialTheme;
+  });
 
   // 테마 변경 시 DOM 및 localStorage 업데이트
   useEffect(() => {
@@ -58,6 +83,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setThemeState(newTheme);
   };
 
+  // 마운트 전에는 기본 라이트 테마로 렌더링 (hydration 불일치 방지)
+  if (!isHydrated) {
+    return (
+      <ThemeContext.Provider
+        value={{ theme: "light", toggleTheme: () => {}, setTheme: () => {} }}
+      >
+        {children}
+      </ThemeContext.Provider>
+    );
+  }
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
       {children}

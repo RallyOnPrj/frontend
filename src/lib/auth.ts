@@ -314,7 +314,7 @@ export async function loginWithOAuth(
   }
 }
 
-// (구버전 호환) provider별 엔드포인트로 인가코드 전송
+// (구버전 호환) provider 정보를 포함해 공통 OAuth 로그인 API로 위임
 export async function sendAuthCodeToBackend(
   provider: AuthProvider,
   code: string

@@ -21,6 +21,21 @@ export const metadata: Metadata = {
   },
 };
 
+const themeInitScript = `
+(() => {
+  try {
+    const THEME_KEY = "rallyon-theme";
+    const LEGACY_THEME_KEY = "drive-theme";
+    const savedTheme = localStorage.getItem(THEME_KEY);
+    const legacyTheme = localStorage.getItem(LEGACY_THEME_KEY);
+    const theme = savedTheme ?? legacyTheme ??
+      (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  } catch {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -28,6 +43,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" suppressHydrationWarning>
+      <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
