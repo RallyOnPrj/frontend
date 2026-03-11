@@ -256,7 +256,7 @@ export async function loginWithOAuth(
       });
       return {
         success: false,
-        error: errorData.message || "로그인에 실패했습니다.",
+        error: errorData.detail || errorData.message || "로그인에 실패했습니다.",
       };
     }
 
@@ -409,12 +409,7 @@ export async function getCurrentUser(
 ): Promise<User | null> {
   // 액세스 토큰이 제공되지 않으면 저장된 토큰 사용
   const token = accessToken || getAccessToken();
-
-  // 토큰이 없거나 빈 문자열이면 API 호출하지 않음 (비로그인 상태)
-  if (!token || !token.trim()) {
-    console.log("[API] No access token found, skipping /users/me request");
-    return null;
-  }
+  const hasToken = !!token && !!token.trim();
 
   // 호출 횟수 증가 및 로그
   usersMeCallCount++;
@@ -425,14 +420,16 @@ export async function getCurrentUser(
   console.log(`[API] GET ${url} - 호출 #${callNumber}`, {
     callNumber,
     caller,
-    hasToken: !!token,
+    hasToken,
     timestamp: new Date().toISOString(),
   });
 
   const headers: HeadersInit = {
     Accept: "application/json",
-    Authorization: `Bearer ${token}`,
   };
+  if (hasToken) {
+    headers.Authorization = `Bearer ${token}`;
+  }
 
   try {
     let response = await fetch(url, {
@@ -444,7 +441,7 @@ export async function getCurrentUser(
     console.log("[API] Response status:", response.status, response.statusText);
 
     // 401 에러 발생 시 Refresh Token으로 재발급 시도
-    if (response.status === 401) {
+    if (response.status === 401 && hasToken) {
       console.log("[API] Access token expired, attempting refresh...");
       const newToken = await refreshAccessToken();
 
@@ -476,29 +473,51 @@ export async function getCurrentUser(
       return null;
     }
 
-    const apiResponse = (await response.json()) as ApiResponse<
-      User & { nickname?: string }
-    >;
-    console.log("[API] User API response:", apiResponse);
+    const responseData = (await response.json()) as
+      | ApiResponse<User & { nickname?: string }>
+      | {
+          id?: number;
+          role?: string;
+          status: UserStatus;
+          nickname?: string | null;
+          grade?: string | null;
+          provinceName?: string | null;
+          districtName?: string | null;
+          gender?: "MALE" | "FEMALE" | null;
+          name?: string;
+          profileImage?: string;
+          profileImageUrl?: string | null;
+        };
+    console.log("[API] User API response:", responseData);
 
-    if (!apiResponse.success || !apiResponse.data) {
-      console.warn("[API] API response indicates failure:", apiResponse);
+    const normalized =
+      "success" in responseData
+        ? responseData.success && responseData.data
+          ? responseData.data
+          : null
+        : responseData;
+
+    if (!normalized) {
+      console.warn("[API] API response indicates failure:", responseData);
       return null;
     }
 
-    const responseData = apiResponse.data;
     const user: User = {
-      id: responseData.id,
-      role: responseData.role,
-      status: responseData.status,
-      nickname: responseData.nickname ?? undefined, // API 응답의 nickname 필드
-      grade: responseData.grade ?? null,
-      provinceName: responseData.provinceName ?? null,
-      districtName: responseData.districtName ?? null,
-      gender: responseData.gender ?? null,
+      id: normalized.id ?? 0,
+      role: normalized.role ?? "USER",
+      status: normalized.status,
+      nickname: normalized.nickname ?? undefined, // API 응답의 nickname 필드
+      grade: normalized.grade ?? null,
+      provinceName: normalized.provinceName ?? null,
+      districtName: normalized.districtName ?? null,
+      gender: normalized.gender ?? null,
       // 소셜 로그인에서 가져온 이름과 프로필 사진 (하위 호환성)
-      name: responseData.name ?? undefined,
-      profileImage: responseData.profileImage ?? undefined,
+      name: normalized.name ?? undefined,
+      profileImage:
+        normalized.profileImage ??
+        ("profileImageUrl" in normalized
+          ? normalized.profileImageUrl ?? undefined
+          : undefined),
     };
 
     console.log("[API] User data:", user);

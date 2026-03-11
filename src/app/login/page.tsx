@@ -9,27 +9,42 @@ import {
   loginWithOAuth,
 } from "@/lib/auth";
 
+function createFreshDummyCode(): string {
+  if (
+    typeof window !== "undefined" &&
+    typeof window.crypto !== "undefined" &&
+    "randomUUID" in window.crypto
+  ) {
+    return `fresh-${window.crypto.randomUUID().slice(0, 8)}`;
+  }
+
+  return `fresh-${Date.now().toString(36)}`;
+}
+
+function resolveDummyLoginError(message: string): string {
+  if (message.includes("허용되지 않는 provider: DUMMY")) {
+    return "DUMMY 로그인이 비활성화되어 있습니다. infra/.env.backend의 OAUTH_DUMMY_ENABLED와 OAUTH_ALLOWED_PROVIDERS 설정을 확인해주세요.";
+  }
+
+  return message;
+}
+
 export default function Login() {
   const router = useRouter();
   const [dummyError, setDummyError] = useState("");
   const [showDummyInput, setShowDummyInput] = useState(false);
   const [dummyCode, setDummyCode] = useState("");
   const [dummySubmitting, setDummySubmitting] = useState(false);
+  const [freshDummyCode] = useState(createFreshDummyCode);
   const enableDummyLogin =
     process.env.NEXT_PUBLIC_ENABLE_DUMMY_LOGIN === "true";
 
   const handleKakaoLogin = () => {
-    // 기본 로그인 (기존 세션 사용)
     window.location.href = getKakaoOAuthURL("/");
   };
 
   const handleKakaoLoginWithDifferentAccount = () => {
-    // 다른 계정으로 로그인 (매번 로그인 화면 표시)
     window.location.href = getKakaoOAuthURL("/", true);
-  };
-
-  const handleDummyLogin = async () => {
-    setShowDummyInput(true);
   };
 
   const cancelDummyLogin = () => {
@@ -38,9 +53,9 @@ export default function Login() {
     setShowDummyInput(false);
   };
 
-  const submitDummyLogin = async () => {
+  const submitDummyLogin = async (codeOverride?: string) => {
     setDummyError("");
-    const code = dummyCode.trim();
+    const code = (codeOverride ?? dummyCode).trim();
     if (!code) {
       setDummyError("AuthorizationCode를 입력해 주세요.");
       return;
@@ -56,20 +71,19 @@ export default function Login() {
       });
 
       if (!result.success) {
-        setDummyError(result.error || "테스트 로그인에 실패했습니다.");
-        setDummySubmitting(false);
+        setDummyError(
+          resolveDummyLoginError(result.error || "테스트 로그인에 실패했습니다.")
+        );
         return;
       }
 
       const userData = await getCurrentUser(result.accessToken);
       if (!userData) {
         setDummyError("사용자 정보를 가져올 수 없습니다.");
-        setDummySubmitting(false);
         return;
       }
 
       if (userData.status === "PENDING") {
-        setDummySubmitting(false);
         router.push("/account/profile");
         return;
       }
@@ -77,31 +91,45 @@ export default function Login() {
       const returnTo = sessionStorage.getItem("oauth_return_to");
       if (returnTo) {
         sessionStorage.removeItem("oauth_return_to");
-        setDummySubmitting(false);
         router.push(returnTo);
         return;
       }
+
       router.push("/");
     } catch (error) {
       setDummyError(
-        error instanceof Error ? error.message : "테스트 로그인에 실패했습니다."
+        resolveDummyLoginError(
+          error instanceof Error ? error.message : "테스트 로그인에 실패했습니다."
+        )
       );
-
-
     } finally {
       setDummySubmitting(false);
-
     }
   };
 
-
+  const quickDummyAccounts = [
+    {
+      code: "manager-local",
+      label: "Manager A",
+      description: "반복 테스트용 고정 관리자 계정",
+    },
+    {
+      code: "player-local",
+      label: "Player B",
+      description: "반복 테스트용 두 번째 고정 계정",
+    },
+    {
+      code: freshDummyCode,
+      label: "Fresh User",
+      description: "프로필 작성 플로우를 확인할 새 계정",
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto flex w-full max-w-6xl justify-center px-4 pt-20 pb-24 sm:px-6 lg:px-8">
         <div className="w-full max-w-md">
           <div className="rounded-3xl border border-border bg-background-secondary p-6 shadow-xl sm:p-8">
-            {/* 로고 */}
             <div className="mb-8 flex flex-col items-center justify-center gap-4">
               <img
                 src="/rallyon-favicon.svg"
@@ -115,7 +143,6 @@ export default function Login() {
               />
             </div>
 
-            {/* 타이틀 */}
             <h1 className="text-center text-2xl font-semibold text-foreground">
               로그인
             </h1>
@@ -123,7 +150,6 @@ export default function Login() {
               카카오 계정으로 간편하게 시작하세요
             </p>
 
-            {/* 카카오 로그인 버튼 */}
             <div className="mt-8 space-y-3">
               <button
                 type="button"
@@ -157,16 +183,51 @@ export default function Login() {
 
               {enableDummyLogin && (
                 <>
-                  <button
-                    type="button"
-                    onClick={handleDummyLogin}
-                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-dashed border-amber-400 bg-amber-200 px-4 py-3 text-sm font-semibold text-amber-900 shadow-sm transition-all hover:bg-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-400/70"
-                  >
-                    <span>테스트 계정으로 로그인 (local)</span>
-                    <span className="rounded-full bg-amber-600 px-2 py-0.5 text-[10px] font-bold text-white">
-                      DEV ONLY
-                    </span>
-                  </button>
+                  <div className="rounded-xl border border-dashed border-amber-400 bg-amber-100/80 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-amber-950">
+                          테스트 계정으로 로그인
+                        </div>
+                        <p className="mt-1 text-xs text-amber-900/80">
+                          로컬 환경에서만 쓰는 빠른 로그인입니다.
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-amber-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                        DEV ONLY
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {quickDummyAccounts.map((account) => (
+                        <button
+                          key={account.code}
+                          type="button"
+                          onClick={() => void submitDummyLogin(account.code)}
+                          disabled={dummySubmitting}
+                          className="w-full rounded-lg border border-amber-400 bg-amber-200 px-4 py-3 text-left text-amber-950 transition-colors hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <div className="text-xs font-bold uppercase tracking-widest">
+                            {account.label}
+                          </div>
+                          <div className="mt-1 text-[11px] font-medium text-amber-950/80">
+                            {account.description}
+                          </div>
+                          <div className="mt-2 text-[10px] font-mono uppercase tracking-widest text-amber-950/70">
+                            code: {account.code}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowDummyInput((prev) => !prev)}
+                      className="mt-3 w-full rounded-lg border border-amber-400 bg-white px-4 py-3 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-50"
+                    >
+                      {showDummyInput ? "직접 입력 닫기" : "직접 코드 입력"}
+                    </button>
+                  </div>
 
                   {showDummyInput && (
                     <div className="rounded-xl border border-amber-400 bg-amber-100/90 p-3">
@@ -183,7 +244,7 @@ export default function Login() {
                       <div className="mt-3 flex gap-2">
                         <button
                           type="button"
-                          onClick={submitDummyLogin}
+                          onClick={() => void submitDummyLogin()}
                           disabled={dummySubmitting}
                           className="flex-1 rounded-lg bg-amber-400 px-3 py-2 text-xs font-semibold text-gray-900 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
                         >
@@ -208,7 +269,6 @@ export default function Login() {
               )}
             </div>
 
-            {/* 안내 문구 */}
             <p className="mt-6 text-center text-xs text-foreground-muted">
               로그인 시{" "}
               <a href="/terms" className="text-primary hover:underline">
