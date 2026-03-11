@@ -1,7 +1,3 @@
-// Google OAuth 설정
-const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
-const GOOGLE_REDIRECT_URI = process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ?? "";
-
 // Kakao OAuth 설정
 const KAKAO_CLIENT_ID = process.env.NEXT_PUBLIC_KAKAO_CLIENT_ID ?? "";
 const KAKAO_REDIRECT_URI = process.env.NEXT_PUBLIC_KAKAO_REDIRECT_URI ?? "";
@@ -20,7 +16,7 @@ function debugLog(...args: unknown[]): void {
   }
 }
 
-export type AuthProvider = "GOOGLE" | "KAKAO" | "DUMMY";
+export type AuthProvider = "KAKAO" | "DUMMY";
 
 // 사용자 정보 타입
 export interface User {
@@ -69,38 +65,6 @@ export interface UserProfileRequest {
   gender: string; // 성별 (MALE | FEMALE)
 }
 
-// Google OAuth URL 생성
-export function getGoogleOAuthURL(returnTo?: string): string {
-  // 환경 변수 검증
-  if (!GOOGLE_CLIENT_ID || !GOOGLE_REDIRECT_URI) {
-    throw new Error(
-      "Google OAuth 설정이 누락되었습니다. NEXT_PUBLIC_GOOGLE_CLIENT_ID와 NEXT_PUBLIC_GOOGLE_REDIRECT_URI 환경 변수를 확인해주세요."
-    );
-  }
-
-  const rootUrl = "https://accounts.google.com/o/oauth2/v2/auth";
-
-  // returnTo가 제공되면 sessionStorage에 저장
-  if (returnTo && typeof window !== "undefined") {
-    sessionStorage.setItem("oauth_return_to", returnTo);
-  }
-
-  const options = {
-    client_id: GOOGLE_CLIENT_ID,
-    redirect_uri: GOOGLE_REDIRECT_URI,
-    response_type: "code",
-    scope: [
-      "https://www.googleapis.com/auth/userinfo.email",
-      "https://www.googleapis.com/auth/userinfo.profile",
-    ].join(" "),
-    access_type: "offline",
-    prompt: "consent",
-  };
-
-  const qs = new URLSearchParams(options);
-  return `${rootUrl}?${qs.toString()}`;
-}
-
 // Kakao OAuth URL 생성
 // forceLogin: true면 매번 카카오 로그인 화면 표시 (다른 계정으로 로그인)
 export function getKakaoOAuthURL(
@@ -139,9 +103,6 @@ export function getKakaoOAuthURL(
 function getRedirectUriByProvider(provider: AuthProvider): string {
   let redirectUri = "";
   switch (provider) {
-    case "GOOGLE":
-      redirectUri = GOOGLE_REDIRECT_URI;
-      break;
     case "KAKAO":
       redirectUri = KAKAO_REDIRECT_URI;
       break;
@@ -353,7 +314,7 @@ export async function loginWithOAuth(
   }
 }
 
-// (구버전 호환) provider별 엔드포인트로 인가코드 전송 (/api/auth/google|kakao)
+// (구버전 호환) provider 정보를 포함해 공통 OAuth 로그인 API로 위임
 export async function sendAuthCodeToBackend(
   provider: AuthProvider,
   code: string

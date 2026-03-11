@@ -21,6 +21,24 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const THEME_KEY = "rallyon-theme";
 const LEGACY_THEME_KEY = "drive-theme";
 
+function getInitialTheme(): Theme {
+  if (typeof window === "undefined") {
+    return "light";
+  }
+
+  const savedTheme = localStorage.getItem(THEME_KEY) as Theme | null;
+  const legacyTheme = localStorage.getItem(LEGACY_THEME_KEY) as Theme | null;
+  const initialTheme = savedTheme ?? legacyTheme;
+
+  if (initialTheme === "dark" || initialTheme === "light") {
+    return initialTheme;
+  }
+
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const isHydrated = useSyncExternalStore(
     () => () => {},
@@ -28,24 +46,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     () => false
   );
   const [theme, setThemeState] = useState<Theme>(() => {
+    const initialTheme = getInitialTheme();
     if (typeof window === "undefined") {
-      return "light";
+      return initialTheme;
     }
 
     const savedTheme = localStorage.getItem(THEME_KEY) as Theme | null;
     const legacyTheme = localStorage.getItem(LEGACY_THEME_KEY) as Theme | null;
-    const initialTheme = savedTheme ?? legacyTheme;
-
-    if (initialTheme) {
-      if (!savedTheme && legacyTheme) {
-        localStorage.setItem(THEME_KEY, initialTheme);
-        localStorage.removeItem(LEGACY_THEME_KEY);
-      }
-      return initialTheme;
+    if (!savedTheme && legacyTheme) {
+      localStorage.setItem(THEME_KEY, initialTheme);
+      localStorage.removeItem(LEGACY_THEME_KEY);
     }
 
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    return prefersDark ? "dark" : "light";
+    return initialTheme;
   });
 
   // 테마 변경 시 DOM 및 localStorage 업데이트
@@ -59,6 +72,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
 
     localStorage.setItem(THEME_KEY, theme);
+    localStorage.removeItem(LEGACY_THEME_KEY);
   }, [theme]);
 
   const toggleTheme = () => {
@@ -79,7 +93,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       </ThemeContext.Provider>
     );
   }
-
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
       {children}
