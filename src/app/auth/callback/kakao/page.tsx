@@ -2,11 +2,8 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  getCurrentUser,
-  getOAuthRedirectUri,
-  loginWithOAuth,
-} from "@/lib/auth";
+import { getCurrentUser, getOAuthRedirectUri, loginWithOAuth } from "@/lib/auth";
+import { Logo } from "@/components/ui/logo";
 
 function KakaoCallbackContent() {
   const router = useRouter();
@@ -15,8 +12,6 @@ function KakaoCallbackContent() {
     "loading"
   );
   const [errorMessage, setErrorMessage] = useState("");
-  const [loadingMessage, setLoadingMessage] =
-    useState("카카오 로그인 처리 중...");
   const [suppressUi, setSuppressUi] = useState(false);
 
   useEffect(() => {
@@ -24,148 +19,114 @@ function KakaoCallbackContent() {
       const code = searchParams.get("code");
       const error = searchParams.get("error");
 
-      // 에러가 있는 경우 (사용자가 취소했거나 등)
       if (error) {
         setStatus("error");
         setErrorMessage("로그인이 취소되었습니다.");
         return;
       }
 
-      // 인가 코드가 없는 경우
       if (!code) {
         setStatus("error");
         setErrorMessage("인가 코드를 받지 못했습니다.");
         return;
       }
 
-      // 1) OAuth 로그인: /auth/login 호출
       const result = await loginWithOAuth({
         provider: "KAKAO",
         authorizationCode: code,
         redirectUri: getOAuthRedirectUri("KAKAO"),
       });
 
-      if (result.success) {
-        if (!result.accessToken) {
-          setStatus("error");
-          setErrorMessage("액세스 토큰을 받지 못했습니다.");
-          return;
-        }
-
-        // 2) 로그인 성공 후 상태 확인: /users/me (액세스 토큰 포함)
-        console.log("[KakaoCallback] 로그인 성공 후 /users/me 호출 시작");
-        const userData = await getCurrentUser(result.accessToken);
-        console.log(
-          "[KakaoCallback] /users/me 호출 완료 - 사용자 데이터:",
-          userData
-        );
-
-        if (!userData) {
-          setStatus("error");
-          setErrorMessage("사용자 정보를 가져올 수 없습니다.");
-          return;
-        }
-
-        if (userData.status === "PENDING") {
-          // 첫 로그인 유저는 콜백 화면을 거의 표시하지 않고 즉시 프로필 입력으로 이동
-          setSuppressUi(true);
-          router.replace("/account/profile");
-          return;
-        }
-
-        // ACTIVE 상태인 경우 저장된 returnTo 경로로 이동, 없으면 랜딩페이지로
-        const returnTo = sessionStorage.getItem("oauth_return_to");
-        if (returnTo) {
-          sessionStorage.removeItem("oauth_return_to");
-          setStatus("success");
-          setTimeout(() => {
-            router.push(returnTo);
-          }, 800);
-        } else {
-          setStatus("success");
-          setTimeout(() => {
-            router.push("/");
-          }, 800);
-        }
-      } else {
+      if (!result.success) {
         setStatus("error");
         setErrorMessage(result.error || "로그인에 실패했습니다.");
+        return;
       }
+
+      const userData = await getCurrentUser();
+      if (!userData) {
+        setStatus("error");
+        setErrorMessage("사용자 정보를 가져올 수 없습니다.");
+        return;
+      }
+
+      const returnTo = sessionStorage.getItem("oauth_return_to");
+      if (returnTo) {
+        sessionStorage.removeItem("oauth_return_to");
+      }
+
+      if (userData.status === "PENDING") {
+        setSuppressUi(true);
+        router.replace("/profile/setup");
+        return;
+      }
+
+      if (returnTo) {
+        setStatus("success");
+        setTimeout(() => {
+          router.push(returnTo);
+        }, 600);
+        return;
+      }
+
+      setStatus("success");
+      setTimeout(() => {
+        router.push("/profile");
+      }, 600);
     };
 
     handleCallback();
-  }, [searchParams, router]);
+  }, [router, searchParams]);
 
   if (suppressUi) return null;
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="text-center">
+    <div className="min-h-screen bg-zinc-950 text-white">
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500/10 blur-[120px] pointer-events-none" />
+
+      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center">
+        <div className="mb-8 animate-pulse">
+          <Logo className="justify-center" />
+        </div>
+
         {status === "loading" && (
           <>
-            <div className="mb-4">
-              <div className="h-12 w-12 mx-auto rounded-full border-4 border-yellow-400 border-t-transparent animate-spin" />
+            <div className="flex items-center gap-3 text-sm font-mono font-bold uppercase tracking-[0.3em] text-emerald-400">
+              <span className="h-2 w-2 animate-pulse bg-emerald-400" />
+              Authenticating
             </div>
-            <h1 className="text-xl font-semibold text-foreground">
-              {loadingMessage}
-            </h1>
-            <p className="mt-2 text-foreground-muted">잠시만 기다려주세요.</p>
+            <p className="mt-4 text-sm font-medium text-zinc-500">
+              카카오 로그인 처리 중입니다...
+            </p>
           </>
         )}
 
         {status === "success" && (
           <>
-            <div className="mb-4">
-              <div className="h-12 w-12 mx-auto rounded-full bg-yellow-400 flex items-center justify-center">
-                <svg
-                  className="h-6 w-6 text-gray-900"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              </div>
+            <div className="flex items-center gap-3 text-sm font-mono font-bold uppercase tracking-[0.3em] text-emerald-400">
+              <span className="h-2 w-2 bg-emerald-400" />
+              Access Granted
             </div>
-            <h1 className="text-xl font-semibold text-foreground">
-              로그인 성공!
-            </h1>
+            <p className="mt-4 text-sm font-medium text-zinc-500">
+              지정된 화면으로 이동합니다.
+            </p>
           </>
         )}
 
         {status === "error" && (
           <>
-            <div className="mb-4">
-              <div className="h-12 w-12 mx-auto rounded-full bg-red-500 flex items-center justify-center">
-                <svg
-                  className="h-6 w-6 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </div>
+            <div className="flex items-center gap-3 text-sm font-mono font-bold uppercase tracking-[0.3em] text-red-400">
+              <span className="h-2 w-2 bg-red-400" />
+              Authentication Failed
             </div>
-            <h1 className="text-xl font-semibold text-foreground">
-              로그인 실패
-            </h1>
-            <p className="mt-2 text-foreground-muted">{errorMessage}</p>
+            <p className="mt-4 text-sm font-medium text-zinc-500">{errorMessage}</p>
             <button
-              onClick={() => router.push("/")}
-              className="mt-6 px-6 py-2 bg-yellow-400 text-gray-900 rounded-lg hover:bg-yellow-500 transition-colors font-medium"
+              type="button"
+              onClick={() => router.push("/login")}
+              className="mt-8 border-2 border-zinc-700 px-6 py-3 text-xs font-bold uppercase tracking-widest text-zinc-300 transition-colors hover:border-orange-500 hover:text-white"
             >
-              메인으로 돌아가기
+              로그인으로 돌아가기
             </button>
           </>
         )}
@@ -174,24 +135,9 @@ function KakaoCallbackContent() {
   );
 }
 
-// Suspense로 감싸는 메인 페이지 컴포넌트
 export default function KakaoCallbackPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-background flex items-center justify-center">
-          <div className="text-center">
-            <div className="mb-4">
-              <div className="h-12 w-12 mx-auto rounded-full border-4 border-yellow-400 border-t-transparent animate-spin" />
-            </div>
-            <h1 className="text-xl font-semibold text-foreground">
-              카카오 로그인 처리 중...
-            </h1>
-            <p className="mt-2 text-foreground-muted">잠시만 기다려주세요.</p>
-          </div>
-        </div>
-      }
-    >
+    <Suspense fallback={<div className="min-h-screen bg-zinc-950" />}>
       <KakaoCallbackContent />
     </Suspense>
   );
