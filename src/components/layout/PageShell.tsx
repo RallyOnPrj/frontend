@@ -16,9 +16,15 @@ export default function PageShell({
   disableHeader = false,
 }: PageShellProps) {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
       {!disableHeader && <MainHeader />}
-      <main className={mainClassName ? `flex-1 ${mainClassName}` : "flex-1"}>
+      <main
+        className={
+          mainClassName
+            ? `min-h-[calc(100vh-4rem)] flex-1 ${mainClassName}`
+            : "min-h-[calc(100vh-4rem)] flex-1"
+        }
+      >
         {children}
       </main>
       {!disableFooter && <MainFooter />}
