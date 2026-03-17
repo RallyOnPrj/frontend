@@ -68,11 +68,20 @@ export interface PublicGameSummary {
 }
 
 export interface CreateGameParticipant {
+  clientId: string;
   userId?: number;
   originalName: string;
   gender: Gender;
   grade: Grade;
   ageGroup: AgeGroup;
+}
+
+export interface CreateGameRound {
+  roundNumber: number;
+  courts: Array<{
+    courtNumber: number;
+    slots: [string | null, string | null, string | null, string | null];
+  }>;
 }
 
 export interface CreateGameRequest {
@@ -82,7 +91,8 @@ export interface CreateGameRequest {
   gradeType: GradeType;
   matchRecordMode?: MatchRecordMode;
   managerIds?: number[];
-  participants?: CreateGameParticipant[];
+  participants: CreateGameParticipant[];
+  rounds: CreateGameRound[];
 }
 
 export interface UpdateGameRequest {
@@ -229,7 +239,7 @@ export async function createFreeGame(
     auth: true,
     body: {
       ...request,
-      participants: request.participants?.map((participant) => ({
+      participants: request.participants.map((participant) => ({
         ...participant,
         grade: toBackendGrade(participant.grade),
       })),

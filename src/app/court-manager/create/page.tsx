@@ -1,24 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Activity,
-  Calendar,
   Check,
   ChevronLeft,
   ChevronRight,
+  LoaderCircle,
   MapPin,
+  Search,
+  X,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SessionDateTimePicker } from "@/components/ui/session-date-time-picker";
 import { useAuth } from "@/hooks/useAuth";
 import { createFreeGame, Grade } from "@/lib/game";
+import { searchPlaces, type PlaceSearchResult } from "@/lib/place";
 import { pushRecentGameId } from "@/lib/recent-games";
 
 type LocalParticipant = {
-  id: string;
+  clientId: string;
   name: string;
   gender: "M" | "F";
   ageGroup: string;
@@ -28,7 +32,7 @@ type LocalParticipant = {
 
 type LocalCourt = {
   id: string;
-  assignedParticipants: LocalParticipant[];
+  assignedParticipants: Array<LocalParticipant | null>;
 };
 
 type LocalRound = {
@@ -36,14 +40,44 @@ type LocalRound = {
   courts: LocalCourt[];
 };
 
+type AssignmentTarget = {
+  roundId: string;
+  courtId: string;
+  slotIndex: number;
+};
+
+type StepValidationField = "gameName" | "date" | "location" | "participants" | null;
+
 const AGE_GROUP_OPTIONS = ["10s", "20s", "30s", "40s", "50s", "60s"];
 const LEVEL_OPTIONS: Grade[] = ["ROOKIE", "D", "C", "B", "A", "S", "SS"];
+const GENDER_LABELS = {
+  M: "남",
+  F: "여",
+} as const;
+const AGE_GROUP_LABELS = {
+  "10s": "10대",
+  "20s": "20대",
+  "30s": "30대",
+  "40s": "40대",
+  "50s": "50대",
+  "60s": "60대",
+} as const;
 
 function buildCourts(count: number) {
   return Array.from({ length: count }, (_, index) => ({
     id: `court-${index + 1}`,
-    assignedParticipants: [],
+    assignedParticipants: Array.from({ length: 4 }, () => null),
   }));
+}
+
+function getNextOrdinalId<T extends { id: string }>(items: T[], prefix: string) {
+  const nextNumber =
+    items.reduce((max, item) => {
+      const match = item.id.match(new RegExp(`^${prefix}-(\\d+)$`));
+      return match ? Math.max(max, Number(match[1])) : max;
+    }, 0) + 1;
+
+  return `${prefix}-${nextNumber}`;
 }
 
 function createInitialRounds(courtCount: number, roundCount: number): LocalRound[] {
@@ -64,8 +98,9 @@ function recalculateAssignments(
         round.courts.reduce(
           (courtTotal, court) =>
             courtTotal +
-            court.assignedParticipants.filter((player) => player.id === participant.id)
-              .length,
+            court.assignedParticipants.filter(
+              (player) => player?.clientId === participant.clientId
+            ).length,
           0
         ),
       0
@@ -75,50 +110,85 @@ function recalculateAssignments(
   });
 }
 
+function isFutureDateTime(value: string) {
+  if (!value) {
+    return false;
+  }
+
+  const candidate = new Date(value);
+  return !Number.isNaN(candidate.getTime()) && candidate.getTime() > Date.now();
+}
+
+function getGenderLabel(gender: "M" | "F") {
+  return GENDER_LABELS[gender];
+}
+
+function getAgeGroupLabel(ageGroup: string) {
+  return AGE_GROUP_LABELS[ageGroup as keyof typeof AGE_GROUP_LABELS] ?? ageGroup;
+}
+
 const BadmintonCourt = ({
   court,
   roundId,
-  participantToAssign,
-  assignParticipant,
+  assignmentTarget,
+  selectAssignmentTarget,
 }: {
   court: LocalCourt;
   roundId: string;
-  participantToAssign: LocalParticipant | null;
-  assignParticipant: (roundId: string, courtId: string) => void;
+  assignmentTarget: AssignmentTarget | null;
+  selectAssignmentTarget: (roundId: string, courtId: string, slotIndex: number) => void;
 }) => {
   return (
-    <div className="relative flex aspect-[2/1] flex-col justify-between overflow-hidden rounded-none border-4 border-slate-900 bg-emerald-700 p-2 shadow-inner">
-      <div className="pointer-events-none absolute inset-2 border-2 border-white/30" />
-      <div className="pointer-events-none absolute top-1 bottom-1 left-1/2 w-1 -translate-x-1/2 bg-white/50" />
-      <div className="pointer-events-none absolute top-1/2 left-2 right-2 h-0.5 -translate-y-1/2 bg-white/30" />
-      <div className="pointer-events-none absolute top-2 bottom-2 left-[35%] w-0.5 bg-white/30" />
-      <div className="pointer-events-none absolute top-2 bottom-2 right-[35%] w-0.5 bg-white/30" />
+    <div className="relative mx-auto flex aspect-[11/6] w-full max-w-[264px] overflow-hidden rounded-none border-4 border-slate-900 bg-emerald-700 px-3 py-2.5 shadow-inner">
+      <div className="pointer-events-none absolute inset-[10px]">
+        <div className="absolute inset-0 border-2 border-white/42" />
 
-      <div className="relative z-10 grid h-full w-full grid-cols-2 grid-rows-2">
+        <div className="absolute inset-y-0 left-[5.7%] w-0.5 bg-white/28" />
+        <div className="absolute inset-y-0 right-[5.7%] w-0.5 bg-white/28" />
+
+        <div className="absolute inset-y-0 left-[35.2%] w-0.5 bg-white/42" />
+        <div className="absolute inset-y-0 right-[35.2%] w-0.5 bg-white/42" />
+
+        <div className="absolute inset-y-0 left-1/2 w-1 -translate-x-1/2 bg-white/55" />
+
+        <div className="absolute inset-x-0 top-[7.5%] h-0.5 bg-white/35" />
+        <div className="absolute inset-x-0 bottom-[7.5%] h-0.5 bg-white/35" />
+
+        <div className="absolute top-1/2 left-[5.7%] right-[64.8%] h-0.5 -translate-y-1/2 bg-white/38" />
+        <div className="absolute top-1/2 left-[64.8%] right-[5.7%] h-0.5 -translate-y-1/2 bg-white/38" />
+      </div>
+
+      <div className="relative z-10 grid h-full w-full grid-cols-2 grid-rows-2 gap-1.5 px-3.5 py-2.5">
         {[0, 1, 2, 3].map((index) => {
           const participant = court.assignedParticipants[index];
+          const isSelectedTarget =
+            assignmentTarget?.roundId === roundId &&
+            assignmentTarget.courtId === court.id &&
+            assignmentTarget.slotIndex === index;
 
           return (
             <div key={index} className="flex items-center justify-center p-1">
               {participant ? (
-                <div className="flex min-w-[64px] max-w-[90%] flex-col items-center justify-center rounded-none border-2 border-slate-900 bg-white px-2 py-1 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]">
+                <div className="flex min-w-[64px] max-w-[84%] flex-col items-center justify-center rounded-none border-2 border-slate-900 bg-white px-2.5 py-1.5 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]">
                   <div className="w-full truncate text-center text-[10px] leading-tight font-bold text-slate-900">
                     {participant.name}
                   </div>
-                  <div className="mt-0.5 text-[8px] font-mono font-bold uppercase tracking-widest text-slate-500">
-                    {participant.gender}/{participant.ageGroup}
+                  <div className="mt-0.5 text-[7px] font-mono font-bold uppercase tracking-widest text-slate-500">
+                    {getGenderLabel(participant.gender)}/{getAgeGroupLabel(participant.ageGroup)}
                   </div>
                 </div>
-              ) : participantToAssign ? (
+              ) : (
                 <button
                   type="button"
-                  onClick={() => assignParticipant(roundId, court.id)}
-                  className="flex h-full max-h-[28px] w-full max-w-[70px] items-center justify-center rounded-none border-2 border-slate-900 bg-teal-400 text-[9px] font-bold uppercase tracking-widest text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all hover:bg-teal-300 active:translate-y-0.5 active:translate-x-0.5 active:shadow-none"
+                  onClick={() => selectAssignmentTarget(roundId, court.id, index)}
+                  className={`flex h-6 w-full max-w-[46px] items-center justify-center rounded-none border-2 text-[8px] font-bold uppercase tracking-widest shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all ${
+                    isSelectedTarget
+                      ? "border-teal-500 bg-teal-100 text-teal-900 ring-2 ring-teal-300/60"
+                      : "border-slate-900 bg-teal-400 text-slate-900 hover:bg-teal-300 active:translate-y-0.5 active:translate-x-0.5 active:shadow-none"
+                  }`}
                 >
-                  Assign
+                  등록
                 </button>
-              ) : (
-                <div className="h-1.5 w-1.5 rounded-none bg-white/30" />
               )}
             </div>
           );
@@ -134,13 +204,17 @@ export default function CreateFreeGamePage() {
   const [gameName, setGameName] = useState("");
   const [date, setDate] = useState("");
   const [location, setLocation] = useState("");
+  const [locationQuery, setLocationQuery] = useState("");
+  const [locationResults, setLocationResults] = useState<PlaceSearchResult[]>([]);
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+  const [isParticipantAssignModalOpen, setIsParticipantAssignModalOpen] = useState(false);
+  const [locationSearchError, setLocationSearchError] = useState("");
   const [courts, setCourts] = useState(2);
   const [roundCount, setRoundCount] = useState(1);
   const [rounds, setRounds] = useState<LocalRound[]>(createInitialRounds(2, 1));
   const [participants, setParticipants] = useState<LocalParticipant[]>([]);
-  const [participantToAssign, setParticipantToAssign] =
-    useState<LocalParticipant | null>(null);
-  const [participantCount, setParticipantCount] = useState(0);
+  const [assignmentTarget, setAssignmentTarget] = useState<AssignmentTarget | null>(null);
   const [newParticipant, setNewParticipant] = useState({
     name: "",
     gender: "M" as "M" | "F",
@@ -150,6 +224,10 @@ export default function CreateFreeGamePage() {
   const [createdGameId, setCreatedGameId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [submitErrorField, setSubmitErrorField] = useState<StepValidationField>(null);
+  const isParticipantNameComposingRef = useRef(false);
+  const submitParticipantAfterCompositionRef = useRef(false);
+  const skipNextParticipantEnterRef = useRef(false);
 
   useEffect(() => {
     if (!isLoading && !isLoggedIn) {
@@ -160,7 +238,7 @@ export default function CreateFreeGamePage() {
   const addRoundBlock = () => {
     setRounds((prev) => [
       ...prev,
-      { id: `round-${prev.length + 1}`, courts: buildCourts(courts) },
+      { id: getNextOrdinalId(prev, "round"), courts: buildCourts(courts) },
     ]);
   };
 
@@ -173,8 +251,8 @@ export default function CreateFreeGamePage() {
               courts: [
                 ...round.courts,
                 {
-                  id: `court-${round.courts.length + 1}`,
-                  assignedParticipants: [],
+                  id: getNextOrdinalId(round.courts, "court"),
+                  assignedParticipants: Array.from({ length: 4 }, () => null),
                 },
               ],
             }
@@ -183,23 +261,76 @@ export default function CreateFreeGamePage() {
     );
   };
 
-  const assignParticipant = (roundId: string, courtId: string) => {
-    if (!participantToAssign) {
+  const selectAssignmentTarget = (
+    roundId: string,
+    courtId: string,
+    slotIndex: number
+  ) => {
+    setSubmitError("");
+    setSubmitErrorField(null);
+    setAssignmentTarget({ roundId, courtId, slotIndex });
+    setIsParticipantAssignModalOpen(true);
+  };
+
+  const closeParticipantAssignModal = () => {
+    setIsParticipantAssignModalOpen(false);
+    setAssignmentTarget(null);
+  };
+
+  const getParticipantAssignmentConflict = (participant: LocalParticipant) => {
+    if (!assignmentTarget) {
+      return null;
+    }
+
+    const targetRound = rounds.find((round) => round.id === assignmentTarget.roundId);
+    const targetCourt = targetRound?.courts.find(
+      (court) => court.id === assignmentTarget.courtId
+    );
+
+    if (!targetRound || !targetCourt) {
+      return null;
+    }
+
+    const existsInSameCourt = targetCourt.assignedParticipants.some(
+      (current) => current?.clientId === participant.clientId
+    );
+    if (existsInSameCourt) {
+      return "같은 코트";
+    }
+
+    const existsInSameRound = targetRound.courts.some((court) =>
+      court.assignedParticipants.some(
+        (current) => current?.clientId === participant.clientId
+      )
+    );
+    if (existsInSameRound) {
+      return "같은 라운드";
+    }
+
+    return null;
+  };
+
+  const assignParticipantToTarget = (participant: LocalParticipant) => {
+    if (!assignmentTarget) {
+      return;
+    }
+
+    const assignmentConflict = getParticipantAssignmentConflict(participant);
+    if (assignmentConflict) {
       return;
     }
 
     const nextRounds = rounds.map((round) =>
-      round.id === roundId
+      round.id === assignmentTarget.roundId
         ? {
             ...round,
             courts: round.courts.map((court) =>
-              court.id === courtId && court.assignedParticipants.length < 4
+              court.id === assignmentTarget.courtId
                 ? {
                     ...court,
-                    assignedParticipants: [
-                      ...court.assignedParticipants,
-                      participantToAssign,
-                    ],
+                    assignedParticipants: court.assignedParticipants.map((current, index) =>
+                      index === assignmentTarget.slotIndex ? participant : current
+                    ),
                   }
                 : court
             ),
@@ -209,17 +340,57 @@ export default function CreateFreeGamePage() {
 
     setRounds(nextRounds);
     setParticipants((prev) => recalculateAssignments(prev, nextRounds));
-    setParticipantToAssign(null);
+    setIsParticipantAssignModalOpen(false);
+    setAssignmentTarget(null);
   };
 
-  const addParticipant = () => {
-    if (!newParticipant.name.trim()) {
+  const removeCourtFromRound = (roundId: string, courtId: string) => {
+    const nextRounds = rounds.map((round) =>
+      round.id === roundId
+        ? {
+            ...round,
+            courts: round.courts.filter((court) => court.id !== courtId),
+          }
+        : round
+    );
+
+    setRounds(nextRounds);
+    setParticipants((prev) => recalculateAssignments(prev, nextRounds));
+    if (
+      assignmentTarget?.roundId === roundId &&
+      assignmentTarget.courtId === courtId
+    ) {
+      setIsParticipantAssignModalOpen(false);
+      setAssignmentTarget(null);
+    }
+  };
+
+  const removeRoundBlock = (roundId: string) => {
+    const nextRounds = rounds.filter((round) => round.id !== roundId);
+
+    setRounds(nextRounds);
+    setParticipants((prev) => recalculateAssignments(prev, nextRounds));
+    if (assignmentTarget?.roundId === roundId) {
+      setIsParticipantAssignModalOpen(false);
+      setAssignmentTarget(null);
+    }
+  };
+
+  const addParticipant = (participantName = newParticipant.name) => {
+    const trimmedParticipantName = participantName.trim();
+
+    if (!trimmedParticipantName) {
       return;
     }
 
+    setSubmitError("");
+    setSubmitErrorField(null);
+    submitParticipantAfterCompositionRef.current = false;
+    skipNextParticipantEnterRef.current = false;
+
     const nextParticipant: LocalParticipant = {
-      id: String(participantCount + 1),
-      name: newParticipant.name.trim(),
+      clientId: crypto.randomUUID(),
+      name: trimmedParticipantName,
       gender: newParticipant.gender,
       ageGroup: newParticipant.ageGroup,
       level: newParticipant.level,
@@ -227,7 +398,6 @@ export default function CreateFreeGamePage() {
     };
 
     setParticipants((prev) => [...prev, nextParticipant]);
-    setParticipantCount((prev) => prev + 1);
     setNewParticipant({
       name: "",
       gender: "M",
@@ -236,28 +406,76 @@ export default function CreateFreeGamePage() {
     });
   };
 
-  const removeParticipant = (participantId: string) => {
+  const handleSearchLocation = async () => {
+    const query = locationQuery.trim();
+
+    setSubmitError("");
+    setSubmitErrorField(null);
+    setLocationSearchError("");
+
+    if (query.length < 2) {
+      setLocationResults([]);
+      setLocationSearchError("장소 검색어를 2글자 이상 입력해주세요.");
+      return;
+    }
+
+    setIsSearchingLocation(true);
+
+    try {
+      const results = await searchPlaces(query);
+      setLocationResults(results);
+      if (results.length === 0) {
+        setLocationSearchError("검색 결과가 없습니다. 다른 검색어로 다시 시도해주세요.");
+      }
+    } catch (error) {
+      setLocationResults([]);
+      setLocationSearchError(
+        error instanceof Error
+          ? error.message
+          : "장소 검색 중 오류가 발생했습니다."
+      );
+    } finally {
+      setIsSearchingLocation(false);
+    }
+  };
+
+  const handleSelectPlace = (place: PlaceSearchResult) => {
+    setSubmitError("");
+    setSubmitErrorField(null);
+    setLocationSearchError("");
+    setLocation(place.name);
+    setLocationQuery(place.name);
+    setLocationResults([]);
+    setIsLocationModalOpen(false);
+  };
+
+  const removeParticipant = (participantClientId: string) => {
     const nextRounds = rounds.map((round) => ({
       ...round,
       courts: round.courts.map((court) => ({
         ...court,
-        assignedParticipants: court.assignedParticipants.filter(
-          (participant) => participant.id !== participantId
+        assignedParticipants: court.assignedParticipants.map((participant) =>
+          participant?.clientId === participantClientId ? null : participant
         ),
       })),
     }));
     const nextParticipants = participants.filter(
-      (participant) => participant.id !== participantId
+      (participant) => participant.clientId !== participantClientId
     );
     setRounds(nextRounds);
     setParticipants(recalculateAssignments(nextParticipants, nextRounds));
-    if (participantToAssign?.id === participantId) {
-      setParticipantToAssign(null);
-    }
   };
 
   const handleNext = async () => {
     setSubmitError("");
+    setSubmitErrorField(null);
+
+    const stepValidation = getStepValidationResult(step);
+    if (stepValidation) {
+      setSubmitError(stepValidation.message);
+      setSubmitErrorField(stepValidation.field);
+      return;
+    }
 
     if (step === 1) {
       setRounds(createInitialRounds(courts, roundCount));
@@ -269,19 +487,29 @@ export default function CreateFreeGamePage() {
       setIsSubmitting(true);
       try {
         const result = await createFreeGame({
-          title: gameName.trim() || "Weekend Morning Rally",
+          title: trimmedGameName,
           courtCount: rounds.reduce(
             (max, round) => Math.max(max, round.courts.length),
-            courts
+            0
           ),
           roundCount: rounds.length,
           gradeType: "REGIONAL",
           matchRecordMode: "RESULT",
           participants: participants.map((participant) => ({
+            clientId: participant.clientId,
             originalName: participant.name,
             gender: participant.gender === "M" ? "MALE" : "FEMALE",
             grade: participant.level,
             ageGroup: Number(participant.ageGroup.replace("s", "")) as 10 | 20 | 30 | 40 | 50 | 60,
+          })),
+          rounds: rounds.map((round, roundIndex) => ({
+            roundNumber: roundIndex + 1,
+            courts: round.courts.map((court, courtIndex) => ({
+              courtNumber: courtIndex + 1,
+              slots: court.assignedParticipants.map((participant) =>
+                participant?.clientId ?? null
+              ) as [string | null, string | null, string | null, string | null],
+            })),
           })),
         });
 
@@ -304,6 +532,7 @@ export default function CreateFreeGamePage() {
 
   const handlePrev = () => {
     setSubmitError("");
+    setSubmitErrorField(null);
     setStep((prev) => Math.max(prev - 1, 1));
   };
 
@@ -320,26 +549,107 @@ export default function CreateFreeGamePage() {
   }
 
   const stepLabels = [
-    "Configuration",
-    "Roster",
-    "Court Assignment",
-    "System Ready",
+    "기본 설정",
+    "참가자 구성",
+    "코트 배정",
+    "준비 완료",
   ];
+
+  const trimmedGameName = gameName.trim();
+  const trimmedLocation = location.trim();
+
+  const getStepValidationResult = (
+    targetStep: number
+  ): { field: StepValidationField; message: string } | null => {
+    if (targetStep === 1) {
+      if (!trimmedGameName) {
+        return { field: "gameName", message: "세션 이름을 입력해주세요." };
+      }
+
+      if (!date) {
+        return { field: "date", message: "날짜와 시간을 선택해주세요." };
+      }
+
+      if (!isFutureDateTime(date)) {
+        return {
+          field: "date",
+          message: "현재 시각보다 미래의 시간만 선택할 수 있습니다.",
+        };
+      }
+
+      if (!trimmedLocation) {
+        return { field: "location", message: "장소를 입력해주세요." };
+      }
+
+      return null;
+    }
+
+    if (targetStep === 2 && participants.length === 0) {
+      return {
+        field: "participants",
+        message: "참가자를 최소 1명 이상 추가해주세요.",
+      };
+    }
+
+    if (targetStep === 3) {
+      if (rounds.length === 0) {
+        return {
+          field: null,
+          message: "최소 1개 이상의 라운드를 추가해주세요.",
+        };
+      }
+
+      if (!rounds.some((round) => round.courts.length > 0)) {
+        return {
+          field: null,
+          message: "최소 1개 이상의 코트를 추가해주세요.",
+        };
+      }
+    }
+
+    return null;
+  };
+
+  const nextButtonLabel = isSubmitting
+    ? "생성 중..."
+    : step === 1
+      ? "참가자 구성하기"
+      : step === 2
+      ? "코트 배정하기"
+        : "자유게임 생성하기";
+
+  const participantAssignModalMeta = assignmentTarget
+    ? (() => {
+        const roundIndex = rounds.findIndex((round) => round.id === assignmentTarget.roundId);
+        if (roundIndex === -1) {
+          return null;
+        }
+
+        const courtIndex = rounds[roundIndex].courts.findIndex(
+          (court) => court.id === assignmentTarget.courtId
+        );
+        if (courtIndex === -1) {
+          return null;
+        }
+
+        return {
+          roundNumber: roundIndex + 1,
+          courtNumber: courtIndex + 1,
+        };
+      })()
+    : null;
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8 md:px-8 lg:py-12">
       <div className="mb-12">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <div className="mb-1 text-[10px] font-mono uppercase tracking-widest text-teal-600">
-              Module 01
-            </div>
             <h1 className="font-display text-2xl font-bold uppercase tracking-tight text-slate-900 md:text-3xl">
               Initialize Session
             </h1>
           </div>
           <div className="hidden items-center gap-2 text-[10px] font-mono uppercase tracking-widest sm:flex">
-            <span className="text-slate-400">Phase</span>
+            <span className="text-slate-400">단계</span>
             <span className="text-lg leading-none font-bold text-teal-600">
               {String(step).padStart(2, "0")}
             </span>
@@ -371,13 +681,23 @@ export default function CreateFreeGamePage() {
         </div>
       </div>
 
-      <div className="relative flex min-h-[500px] flex-col overflow-hidden rounded-sm border-2 border-slate-900 bg-white shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]">
+      <div className="relative flex min-h-[500px] flex-col overflow-visible rounded-sm border-2 border-slate-900 bg-white shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]">
         <div className="absolute top-0 left-0 h-4 w-4 border-r-2 border-b-2 border-slate-200" />
         <div className="absolute top-0 right-0 h-4 w-4 border-b-2 border-l-2 border-slate-200" />
         <div className="absolute bottom-0 left-0 h-4 w-4 border-t-2 border-r-2 border-slate-200" />
         <div className="absolute right-0 bottom-0 h-4 w-4 border-t-2 border-l-2 border-slate-200" />
 
-        <div className="z-10 flex-1 p-6 md:p-10">
+        <div
+          className={`z-10 flex min-h-[52px] items-center border-b px-6 py-3 text-sm font-medium md:px-10 ${
+            submitError
+              ? "border-red-200 bg-red-50 text-red-600"
+              : "border-transparent bg-transparent text-transparent"
+          }`}
+        >
+          {submitError || "\u00A0"}
+        </div>
+
+        <div className="z-30 flex-1 p-6 md:p-10">
           <AnimatePresence mode="wait">
             {step === 1 && (
               <motion.div
@@ -386,59 +706,101 @@ export default function CreateFreeGamePage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.3 }}
-                className="mx-auto max-w-2xl space-y-8"
+                className="mx-auto max-w-2xl space-y-6"
               >
-                <div className="mb-8 border-b-2 border-slate-100 pb-4">
-                  <h2 className="font-display text-2xl font-bold uppercase text-slate-900">
-                    Configuration
+                <div className="mb-6 border-b-2 border-slate-100 pb-3">
+                  <h2 className="font-display text-2xl font-bold text-slate-900">
+                    자유게임 설정
                   </h2>
                   <p className="mt-2 text-sm font-mono text-slate-500">
-                    Enter basic parameters for the session.
+                    자유게임에 필요한 기본 정보를 입력하세요.
                   </p>
                 </div>
 
                 <div className="space-y-6">
                   <div className="space-y-2">
                     <label className="text-[11px] font-mono font-bold uppercase tracking-widest text-slate-900">
-                      Session Name
+                      세션 이름
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. Weekend Morning Rally"
-                      className="w-full rounded-none border-2 border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium transition-colors focus:border-slate-900 focus:bg-white focus:outline-none"
+                      placeholder="예: 주말 아침 랠리"
+                      className={`h-14 w-full rounded-none border-2 bg-slate-50 px-4 text-sm font-medium transition-colors focus:bg-white focus:outline-none ${
+                        submitErrorField === "gameName"
+                          ? "border-red-300 focus:border-red-500"
+                          : "border-slate-200 focus:border-slate-900"
+                      }`}
                       value={gameName}
-                      onChange={(event) => setGameName(event.target.value)}
+                      onChange={(event) => {
+                        setSubmitError("");
+                        setSubmitErrorField(null);
+                        setGameName(event.target.value);
+                      }}
                     />
                   </div>
 
                   <div className="grid gap-6 sm:grid-cols-2">
                     <div className="space-y-2">
                       <label className="text-[11px] font-mono font-bold uppercase tracking-widest text-slate-900">
-                        Date & Time
+                        날짜 및 시간
                       </label>
-                      <div className="relative">
-                        <Calendar className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                        <input
-                          type="datetime-local"
-                          className="w-full rounded-none border-2 border-slate-200 bg-slate-50 py-3 pr-4 pl-10 text-sm font-medium transition-colors focus:border-slate-900 focus:bg-white focus:outline-none"
-                          value={date}
-                          onChange={(event) => setDate(event.target.value)}
-                        />
-                      </div>
+                      <SessionDateTimePicker
+                        value={date}
+                        onChange={(nextValue) => {
+                          setSubmitError("");
+                          setSubmitErrorField(null);
+                          setDate(nextValue);
+                        }}
+                        error={submitErrorField === "date"}
+                      />
                     </div>
                     <div className="space-y-2">
                       <label className="text-[11px] font-mono font-bold uppercase tracking-widest text-slate-900">
-                        Location
+                        장소
                       </label>
-                      <div className="relative">
-                        <MapPin className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                        <input
-                          type="text"
-                          placeholder="Search venue"
-                          className="w-full rounded-none border-2 border-slate-200 bg-slate-50 py-3 pr-4 pl-10 text-sm font-medium transition-colors focus:border-slate-900 focus:bg-white focus:outline-none"
-                          value={location}
-                          onChange={(event) => setLocation(event.target.value)}
-                        />
+                      <div className="space-y-3">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLocationSearchError("");
+                              setLocationResults([]);
+                              setLocationQuery(location);
+                              setIsLocationModalOpen(true);
+                            }}
+                            className={`flex h-14 flex-1 items-center gap-3 rounded-none border-2 bg-slate-50 px-3 ${
+                              submitErrorField === "location"
+                                ? "border-red-300"
+                                : "border-slate-200 hover:border-slate-900"
+                            }`}
+                          >
+                            <MapPin className="h-4 w-4 shrink-0 text-slate-400" />
+                            <div className="min-w-0 truncate text-sm font-medium text-slate-900">
+                              {location || "장소를 선택해주세요"}
+                            </div>
+                          </button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-14 shrink-0 rounded-none border-2 border-slate-900 px-3 text-[11px] font-mono font-bold uppercase tracking-widest text-slate-900"
+                            onClick={() => {
+                              setLocationSearchError("");
+                              setLocationResults([]);
+                              setLocationQuery(location);
+                              setIsLocationModalOpen(true);
+                            }}
+                          >
+                            <Search className="mr-2 h-4 w-4" />
+                            장소 검색
+                          </Button>
+                        </div>
+
+                        {locationSearchError ? (
+                          <div className="border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+                            {locationSearchError}
+                          </div>
+                        ) : null}
+
                       </div>
                     </div>
                   </div>
@@ -446,7 +808,7 @@ export default function CreateFreeGamePage() {
                   <div className="grid gap-6 border-t-2 border-slate-100 pt-4 sm:grid-cols-2">
                     <div className="space-y-3">
                       <label className="text-[11px] font-mono font-bold uppercase tracking-widest text-slate-900">
-                        Active Courts
+                        활성 코트
                       </label>
                       <div className="flex items-center gap-4">
                         <Button
@@ -473,7 +835,7 @@ export default function CreateFreeGamePage() {
 
                     <div className="space-y-3">
                       <label className="text-[11px] font-mono font-bold uppercase tracking-widest text-slate-900">
-                        Active Round
+                        활성 라운드
                       </label>
                       <div className="flex items-center gap-4">
                         <Button
@@ -509,20 +871,20 @@ export default function CreateFreeGamePage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.3 }}
-                className="space-y-8"
+                className="space-y-6"
               >
-                <div className="mb-8 flex items-end justify-between border-b-2 border-slate-100 pb-4">
+                <div className="mb-6 flex items-end justify-between border-b-2 border-slate-100 pb-3">
                   <div>
                     <h2 className="font-display text-2xl font-bold uppercase text-slate-900">
-                      Roster Assembly
+                      참가자 구성
                     </h2>
                     <p className="mt-2 text-sm font-mono text-slate-500">
-                      Add participants and assign levels.
+                      참가자를 추가하고 등급을 지정해주세요.
                     </p>
                   </div>
                   <div className="flex flex-col items-end">
                     <span className="mb-1 text-[10px] font-mono uppercase tracking-widest text-slate-400">
-                      Total Count
+                      총 인원
                     </span>
                     <div className="font-display text-3xl leading-none font-bold text-teal-600">
                       {String(participants.length).padStart(2, "0")}
@@ -533,7 +895,7 @@ export default function CreateFreeGamePage() {
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="Name"
+                    placeholder="이름"
                     className="flex-1 rounded-none border-2 border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium transition-colors focus:border-slate-900 focus:bg-white focus:outline-none"
                     value={newParticipant.name}
                     onChange={(event) =>
@@ -542,10 +904,56 @@ export default function CreateFreeGamePage() {
                         name: event.target.value,
                       }))
                     }
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        addParticipant();
+                    onCompositionStart={() => {
+                      isParticipantNameComposingRef.current = true;
+                      submitParticipantAfterCompositionRef.current = false;
+                      skipNextParticipantEnterRef.current = false;
+                    }}
+                    onCompositionEnd={(event) => {
+                      const composedName = event.currentTarget.value;
+
+                      isParticipantNameComposingRef.current = false;
+                      setNewParticipant((prev) => ({
+                        ...prev,
+                        name: composedName,
+                      }));
+
+                      if (submitParticipantAfterCompositionRef.current) {
+                        submitParticipantAfterCompositionRef.current = false;
+                        skipNextParticipantEnterRef.current = true;
+                        requestAnimationFrame(() => {
+                          addParticipant(composedName);
+                        });
                       }
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") {
+                        return;
+                      }
+
+                      if (skipNextParticipantEnterRef.current) {
+                        event.preventDefault();
+                        skipNextParticipantEnterRef.current = false;
+                        return;
+                      }
+
+                      const nativeEvent = event.nativeEvent as KeyboardEvent & {
+                        isComposing?: boolean;
+                        keyCode?: number;
+                      };
+                      const isComposing =
+                        isParticipantNameComposingRef.current ||
+                        nativeEvent.isComposing === true ||
+                        nativeEvent.keyCode === 229;
+
+                      event.preventDefault();
+
+                      if (isComposing) {
+                        submitParticipantAfterCompositionRef.current = true;
+                        return;
+                      }
+
+                      addParticipant();
                     }}
                   />
                   <select
@@ -558,8 +966,8 @@ export default function CreateFreeGamePage() {
                       }))
                     }
                   >
-                    <option value="M">M</option>
-                    <option value="F">F</option>
+                    <option value="M">남</option>
+                    <option value="F">여</option>
                   </select>
                   <select
                     className="w-24 rounded-none border-2 border-slate-200 bg-slate-50 px-2 py-3 text-sm font-medium transition-colors focus:border-slate-900 focus:bg-white focus:outline-none"
@@ -573,7 +981,7 @@ export default function CreateFreeGamePage() {
                   >
                     {AGE_GROUP_OPTIONS.map((ageGroup) => (
                       <option key={ageGroup} value={ageGroup}>
-                        {ageGroup}
+                        {getAgeGroupLabel(ageGroup)}
                       </option>
                     ))}
                   </select>
@@ -594,26 +1002,32 @@ export default function CreateFreeGamePage() {
                     ))}
                   </select>
                   <Button
-                    onClick={addParticipant}
+                    onClick={() => addParticipant()}
                     className="h-auto rounded-none bg-slate-900 px-8 text-xs font-bold uppercase tracking-widest text-white hover:bg-slate-800"
                   >
-                    Add
+                    추가
                   </Button>
                 </div>
 
-                <div className="border-2 border-slate-200 bg-white">
-                  <div className="grid grid-cols-12 gap-4 border-b-2 border-slate-200 bg-slate-50 px-4 py-3 text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
-                    <div className="col-span-1 text-center">ID</div>
-                    <div className="col-span-4">Name</div>
-                    <div className="col-span-2 text-center">Gender</div>
-                    <div className="col-span-2 text-center">Age</div>
-                    <div className="col-span-2 text-center">Level</div>
-                    <div className="col-span-1 text-right">Action</div>
+                <div
+                  className={`border-2 bg-white ${
+                    submitErrorField === "participants"
+                      ? "border-red-300"
+                      : "border-slate-200"
+                  }`}
+                >
+                    <div className="grid grid-cols-12 gap-4 border-b-2 border-slate-200 bg-slate-50 px-4 py-3 text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
+                      <div className="col-span-1 text-center">ID</div>
+                    <div className="col-span-4">이름</div>
+                    <div className="col-span-2 text-center">성별</div>
+                    <div className="col-span-2 text-center">연령</div>
+                    <div className="col-span-2 text-center">등급</div>
+                    <div className="col-span-1 text-right">관리</div>
                   </div>
                   <div className="max-h-[300px] divide-y-2 divide-slate-100 overflow-y-auto">
                     {participants.map((participant, index) => (
                       <div
-                        key={participant.id}
+                        key={participant.clientId}
                         className="grid grid-cols-12 items-center gap-4 px-4 py-2 transition-colors hover:bg-slate-50"
                       >
                         <div className="col-span-1 text-center font-mono text-xs text-slate-400">
@@ -623,10 +1037,10 @@ export default function CreateFreeGamePage() {
                           {participant.name}
                         </div>
                         <div className="col-span-2 text-center font-mono text-xs text-slate-600">
-                          {participant.gender}
+                          {getGenderLabel(participant.gender)}
                         </div>
                         <div className="col-span-2 text-center font-mono text-xs text-slate-600">
-                          {participant.ageGroup}
+                          {getAgeGroupLabel(participant.ageGroup)}
                         </div>
                         <div className="col-span-2 flex justify-center">
                           <span className="border-2 border-slate-200 bg-slate-100 px-2 py-1 text-xs font-mono font-bold uppercase text-slate-700">
@@ -638,7 +1052,7 @@ export default function CreateFreeGamePage() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 rounded-none text-slate-400 hover:bg-red-50 hover:text-red-500"
-                            onClick={() => removeParticipant(participant.id)}
+                            onClick={() => removeParticipant(participant.clientId)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -647,7 +1061,7 @@ export default function CreateFreeGamePage() {
                     ))}
                     {participants.length === 0 && (
                       <div className="py-12 text-center font-mono text-xs uppercase tracking-widest text-slate-400">
-                        No participants added
+                        아직 추가된 참가자가 없습니다
                       </div>
                     )}
                   </div>
@@ -662,123 +1076,130 @@ export default function CreateFreeGamePage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.3 }}
-                className="space-y-8"
+                className="space-y-6"
               >
-                <div className="mb-8 flex flex-col justify-between gap-4 border-b-2 border-slate-100 pb-4 sm:flex-row sm:items-end">
+                <div className="mb-6 flex flex-col justify-between gap-4 border-b-2 border-slate-100 pb-3 sm:flex-row sm:items-end">
                   <div>
                     <h2 className="font-display text-2xl font-bold uppercase text-slate-900">
-                      Court Assignment
+                      코트 배정
                     </h2>
                     <p className="mt-2 text-sm font-mono text-slate-500">
-                      Review and adjust Round 01 matchups.
+                      배정할 코트 슬롯을 먼저 선택한 뒤 참가자를 등록하세요.
                     </p>
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="rounded-none border-2 border-slate-300 font-mono text-[10px] uppercase tracking-widest text-slate-700 hover:bg-slate-100"
+                    disabled
+                    className="cursor-not-allowed rounded-none border-2 border-slate-300 font-mono text-[10px] uppercase tracking-widest text-slate-400 hover:bg-transparent"
                   >
                     <Activity className="mr-2 h-3 w-3" />
-                    Auto-Assign
+                    자동 배정 · 개발 중
                   </Button>
                 </div>
 
                 <div className="space-y-6">
                   <div className="border-2 border-slate-200 bg-slate-50 p-4">
-                    <div className="mb-3 flex items-center justify-between">
+                    <div className="mb-3">
                       <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
-                        Assignment Summary
+                        참가자 요약
                       </h3>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6 rounded-none border border-slate-300 text-[10px] font-bold uppercase tracking-widest"
-                          onClick={addRoundBlock}
-                        >
-                          라운드 추가
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6 rounded-none border border-slate-300 text-[10px] font-bold uppercase tracking-widest"
-                          onClick={() =>
-                            addCourtToRound(rounds[rounds.length - 1]?.id || "round-1")
-                          }
-                        >
-                          코트 추가
-                        </Button>
-                      </div>
                     </div>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
                       {participants.map((participant) => (
                         <div
-                          key={participant.id}
-                          className="flex items-center justify-between border border-slate-200 bg-white p-2 text-xs"
+                          key={participant.clientId}
+                          className="flex items-center justify-between border border-slate-200 bg-white p-2 text-left text-xs"
                         >
-                          <span className="flex-1 truncate font-bold text-slate-900">
-                            {participant.name}
-                          </span>
-                          <span className="ml-2 font-mono text-slate-500">
-                            {participant.gender}/{participant.ageGroup}
-                          </span>
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <span className="truncate font-bold text-slate-900">
+                              {participant.name}
+                            </span>
+                            <span className="shrink-0 font-mono text-slate-500">
+                              {getGenderLabel(participant.gender)}/{getAgeGroupLabel(participant.ageGroup)}
+                            </span>
+                          </div>
                           <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 font-mono font-bold text-slate-900">
-                            {participant.gamesAssigned}
+                            게임 수 {participant.gamesAssigned}
                           </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={`ml-2 h-6 rounded-none text-[10px] font-bold uppercase tracking-widest ${
-                              participantToAssign?.id === participant.id
-                                ? "bg-teal-100 text-teal-900"
-                                : "bg-slate-100 text-slate-900"
-                            }`}
-                            onClick={() => setParticipantToAssign(participant)}
-                          >
-                            {participantToAssign?.id === participant.id
-                              ? "Selecting..."
-                              : "Assign"}
-                          </Button>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  {rounds.map((round, roundIndex) => (
-                    <div key={round.id} className="space-y-6">
-                      <div className="flex items-center gap-4">
-                        <div className="h-px flex-1 bg-slate-200" />
-                        <span className="bg-slate-900 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-widest text-white">
-                          Round {String(roundIndex + 1).padStart(2, "0")}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6 rounded-none border border-slate-300 text-[10px] font-bold uppercase tracking-widest"
-                          onClick={() => addCourtToRound(round.id)}
-                        >
-                          + 코트 추가
-                        </Button>
-                        <div className="h-px flex-1 bg-slate-200" />
-                      </div>
-
-                      <div className="grid gap-6 sm:grid-cols-2">
-                        {round.courts.map((court, courtIndex) => (
-                          <div key={court.id} className="space-y-1">
-                            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
-                              Court {String(courtIndex + 1).padStart(2, "0")}
-                            </span>
-                            <BadmintonCourt
-                              court={court}
-                              roundId={round.id}
-                              participantToAssign={participantToAssign}
-                              assignParticipant={assignParticipant}
-                            />
-                          </div>
-                        ))}
+                  {rounds.length === 0 ? (
+                    <div className="border-2 border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center">
+                      <div className="text-sm font-medium text-slate-500">
+                        아직 생성된 라운드가 없습니다.
                       </div>
                     </div>
-                  ))}
+                  ) : (
+                    rounds.map((round, roundIndex) => (
+                      <div key={round.id} className="space-y-6">
+                        <div className="flex items-center gap-4">
+                          <div className="h-px flex-1 bg-slate-200" />
+                          <span className="bg-slate-900 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-widest text-white">
+                            라운드 {String(roundIndex + 1).padStart(2, "0")}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 rounded-none border border-slate-300 text-[10px] font-bold uppercase tracking-widest"
+                            onClick={() => addCourtToRound(round.id)}
+                          >
+                            + 코트 추가
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 rounded-none text-slate-400 hover:bg-red-50 hover:text-red-500"
+                            onClick={() => removeRoundBlock(round.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                          <div className="h-px flex-1 bg-slate-200" />
+                        </div>
+
+                        {round.courts.length === 0 ? (
+                          <div className="border-2 border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
+                            <div className="text-sm font-medium text-slate-500">
+                              이 라운드에는 아직 코트가 없습니다.
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mx-auto flex max-w-[1140px] flex-wrap justify-center gap-7">
+                            {round.courts.map((court, courtIndex) => (
+                              <div
+                                key={court.id}
+                                className="w-full max-w-[264px] shrink-0 space-y-1 sm:w-[264px]"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
+                                    코트 {String(courtIndex + 1).padStart(2, "0")}
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 rounded-none text-slate-400 hover:bg-red-50 hover:text-red-500"
+                                    onClick={() => removeCourtFromRound(round.id, court.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                                <BadmintonCourt
+                                  court={court}
+                                  roundId={round.id}
+                                  assignmentTarget={assignmentTarget}
+                                  selectAssignmentTarget={selectAssignmentTarget}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+
                 </div>
               </motion.div>
             )}
@@ -840,14 +1261,8 @@ export default function CreateFreeGamePage() {
           </AnimatePresence>
         </div>
 
-        {submitError && (
-          <div className="border-t border-red-200 bg-red-50 px-6 py-3 text-sm font-medium text-red-600">
-            {submitError}
-          </div>
-        )}
-
         {step < 4 && (
-          <div className="z-20 flex items-center justify-between border-t-2 border-slate-900 bg-slate-50 p-4 md:p-6">
+          <div className="z-10 flex items-center justify-between border-t-2 border-slate-900 bg-slate-50 p-4 md:p-6">
             <Button
               variant="ghost"
               onClick={handlePrev}
@@ -857,21 +1272,258 @@ export default function CreateFreeGamePage() {
               <ChevronLeft className="mr-1 h-4 w-4" />
               Back
             </Button>
-            <Button
-              onClick={() => void handleNext()}
-              disabled={isSubmitting}
-              className="h-12 rounded-none bg-teal-500 px-8 font-bold uppercase tracking-widest text-slate-950 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all hover:bg-teal-400 active:translate-y-0.5 active:translate-x-0.5 active:shadow-none"
-            >
-              {isSubmitting
-                ? "Creating..."
-                : step === 3
-                ? "Finalize"
-                : "Proceed"}
-              {step !== 3 && !isSubmitting && <ChevronRight className="ml-2 h-4 w-4" />}
-            </Button>
+            <div className="flex w-full max-w-[412px] justify-end gap-3">
+              {step === 3 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addRoundBlock}
+                  className="h-12 w-full rounded-none border-2 border-slate-900 bg-white font-bold uppercase tracking-widest text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all hover:bg-slate-50 active:translate-y-0.5 active:translate-x-0.5 active:shadow-none sm:w-[200px]"
+                >
+                  라운드 추가
+                </Button>
+              ) : null}
+              <Button
+                onClick={() => void handleNext()}
+                disabled={isSubmitting}
+                className="h-12 w-full rounded-none bg-teal-500 font-bold uppercase tracking-widest text-slate-950 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] transition-all hover:bg-teal-400 active:translate-y-0.5 active:translate-x-0.5 active:shadow-none sm:w-[200px]"
+              >
+                {nextButtonLabel}
+                {step !== 3 && !isSubmitting && <ChevronRight className="ml-2 h-4 w-4" />}
+              </Button>
+            </div>
           </div>
         )}
       </div>
+
+      <AnimatePresence>
+        {isLocationModalOpen ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4 py-8"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={{ duration: 0.2 }}
+              className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-sm border-2 border-slate-900 bg-white shadow-[6px_6px_0px_0px_rgba(15,23,42,1)]"
+            >
+              <div className="flex items-center justify-between border-b-2 border-slate-900 px-5 py-4">
+                <div>
+                  <h3 className="font-display text-xl font-bold text-slate-900">
+                    장소 검색
+                  </h3>
+                  <p className="mt-1 text-xs font-mono text-slate-500">
+                    체육관 또는 운동 장소 이름으로 검색하세요.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 rounded-none border-2 border-slate-200 text-slate-600 hover:border-slate-900 hover:bg-slate-50"
+                  onClick={() => setIsLocationModalOpen(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="flex-1 space-y-4 overflow-y-auto p-5">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <MapPin className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="예: 숙지다목적체육관"
+                      className="w-full rounded-none border-2 border-slate-200 bg-slate-50 py-3 pr-4 pl-10 text-sm font-medium transition-colors focus:border-slate-900 focus:bg-white focus:outline-none"
+                      value={locationQuery}
+                      onChange={(event) => {
+                        setLocationSearchError("");
+                        setLocationResults([]);
+                        setLocationQuery(event.target.value);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void handleSearchLocation();
+                        }
+                      }}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-[50px] rounded-none border-2 border-slate-900 px-4 text-[11px] font-mono font-bold uppercase tracking-widest text-slate-900"
+                    onClick={() => void handleSearchLocation()}
+                    disabled={isSearchingLocation}
+                  >
+                    {isSearchingLocation ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Search className="mr-2 h-4 w-4" />
+                        검색
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {locationSearchError ? (
+                  <div className="border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+                    {locationSearchError}
+                  </div>
+                ) : null}
+
+                {locationResults.length > 0 ? (
+                  <div className="space-y-2">
+                    {locationResults.map((place) => {
+                      const key = `${place.name}-${place.roadAddress}-${place.address}-${place.link}`;
+
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => handleSelectPlace(place)}
+                          className="flex w-full items-start justify-between gap-3 border-2 border-slate-200 bg-white px-4 py-4 text-left transition-colors hover:border-slate-900 hover:bg-slate-50"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-bold text-slate-900">
+                              {place.name}
+                            </div>
+                            <div className="mt-1 text-xs font-medium text-slate-500">
+                              {place.roadAddress || place.address}
+                            </div>
+                          </div>
+                          <span className="shrink-0 text-[10px] font-mono font-bold uppercase tracking-widest text-teal-600">
+                            선택
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex min-h-48 items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
+                    <div>
+                      <div className="text-sm font-bold text-slate-900">
+                        검색어를 입력하고 장소를 찾아보세요.
+                      </div>
+                      <div className="mt-2 text-xs font-medium text-slate-500">
+                        2글자 이상 입력하면 체육관이나 운동 장소를 검색할 수 있어요.
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isParticipantAssignModalOpen ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 px-4 py-8"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={{ duration: 0.2 }}
+              className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-sm border-2 border-slate-900 bg-white shadow-[6px_6px_0px_0px_rgba(15,23,42,1)]"
+            >
+              <div className="flex items-center justify-between border-b-2 border-slate-900 px-5 py-4">
+                <div>
+                  <h3 className="font-display text-xl font-bold text-slate-900">
+                    참가자 선택
+                  </h3>
+                  <p className="mt-1 text-xs font-mono text-slate-500">
+                    {participantAssignModalMeta
+                      ? `라운드 ${String(participantAssignModalMeta.roundNumber).padStart(2, "0")} · 코트 ${String(participantAssignModalMeta.courtNumber).padStart(2, "0")}에 등록할 참가자를 선택하세요.`
+                      : "등록할 참가자를 선택하세요."}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 rounded-none border-2 border-slate-200 text-slate-600 hover:border-slate-900 hover:bg-slate-50"
+                  onClick={closeParticipantAssignModal}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="flex-1 space-y-4 overflow-y-auto p-5">
+                {participants.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                    {participants.map((participant) => {
+                      const assignmentConflict = getParticipantAssignmentConflict(participant);
+                      const isDisabled = assignmentConflict !== null;
+
+                      return (
+                        <button
+                          key={participant.clientId}
+                          type="button"
+                          onClick={() => assignParticipantToTarget(participant)}
+                          disabled={isDisabled}
+                          className={`flex w-full items-center gap-3 border-2 px-4 py-4 text-left transition-colors ${
+                            isDisabled
+                              ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                              : "border-slate-200 bg-white hover:border-teal-500 hover:bg-teal-50"
+                          }`}
+                        >
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <span
+                              className={`truncate text-sm font-bold ${
+                                isDisabled ? "text-slate-400" : "text-slate-900"
+                              }`}
+                            >
+                              {participant.name}
+                            </span>
+                            <span
+                              className={`shrink-0 text-xs font-medium ${
+                                isDisabled ? "text-slate-400" : "text-slate-500"
+                              }`}
+                            >
+                              {getGenderLabel(participant.gender)}/{getAgeGroupLabel(participant.ageGroup)}
+                            </span>
+                          </div>
+                          <span
+                            className={`shrink-0 rounded px-2 py-1 text-[10px] font-mono font-bold ${
+                              isDisabled
+                                ? "bg-slate-200 text-slate-500"
+                                : "bg-slate-100 text-slate-900"
+                            }`}
+                          >
+                            {isDisabled ? assignmentConflict : `게임 수 ${participant.gamesAssigned}`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex min-h-48 items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
+                    <div>
+                      <div className="text-sm font-bold text-slate-900">
+                        아직 등록할 참가자가 없습니다.
+                      </div>
+                      <div className="mt-2 text-xs font-medium text-slate-500">
+                        먼저 참가자 구성 단계에서 참가자를 추가해주세요.
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }
