@@ -90,6 +90,7 @@ export interface CreateGameRequest {
   roundCount: number;
   gradeType: GradeType;
   matchRecordMode?: MatchRecordMode;
+  location?: string;
   managerIds?: number[];
   participants: CreateGameParticipant[];
   rounds: CreateGameRound[];
@@ -112,11 +113,11 @@ export interface ScheduleDraftRound {
 }
 
 interface CreateFreeGameResponse {
-  gameId: number;
+  gameId: string;
 }
 
 interface FreeGameDetailResponse {
-  gameId: number;
+  gameId: string;
   title: string;
   gameStatus: GameStatus;
   matchRecordMode: MatchRecordMode;
@@ -128,7 +129,7 @@ interface FreeGameDetailResponse {
 }
 
 interface FreeGameParticipantResponse {
-  participantId: number;
+  participantId: string;
   userId?: number | null;
   displayName: string;
   gender: Gender;
@@ -141,15 +142,15 @@ interface FreeGameParticipantResponse {
 }
 
 interface FreeGameParticipantsResponse {
-  gameId: number;
+  gameId: string;
   matchRecordMode: MatchRecordMode;
   participants: FreeGameParticipantResponse[];
 }
 
 interface FreeGameMatchResponse {
   courtNumber: number;
-  teamAIds: Array<number | null>;
-  teamBIds: Array<number | null>;
+  teamAIds: Array<string | null>;
+  teamBIds: Array<string | null>;
   matchStatus: MatchStatus;
   matchResult: Exclude<MatchResult, null> | "NULL";
   isActive: boolean;
@@ -162,17 +163,17 @@ interface FreeGameRoundResponse {
 }
 
 interface FreeGameRoundMatchResponse {
-  gameId: number;
+  gameId: string;
   rounds: FreeGameRoundResponse[];
 }
 
-function toPair(ids: Array<number | null> | undefined): [string | null, string | null] {
-  return [ids?.[0] != null ? String(ids[0]) : null, ids?.[1] != null ? String(ids[1]) : null];
+function toPair(ids: Array<string | null> | undefined): [string | null, string | null] {
+  return [ids?.[0] ?? null, ids?.[1] ?? null];
 }
 
 function mapParticipant(response: FreeGameParticipantResponse): Participant {
   return {
-    id: String(response.participantId),
+    id: response.participantId,
     userId: response.userId ?? null,
     name: response.displayName,
     displayName: response.displayName,
@@ -217,7 +218,7 @@ function mapGame(
   rounds: FreeGameRoundMatchResponse
 ): Game {
   return {
-    id: String(detail.gameId),
+    id: detail.gameId,
     title: detail.title,
     courtCount: detail.courtCount,
     roundCount: detail.roundCount,
@@ -233,7 +234,7 @@ function mapGame(
 
 export async function createFreeGame(
   request: CreateGameRequest
-): Promise<{ gameId: number }> {
+): Promise<{ gameId: string }> {
   const response = await apiRequest<CreateFreeGameResponse>("/free-games", {
     method: "POST",
     auth: true,
@@ -294,7 +295,7 @@ export async function getPublicGameByShareCode(
     );
 
     return {
-      id: String(detail.gameId),
+      id: detail.gameId,
       title: detail.title,
       courtCount: detail.courtCount,
       roundCount: detail.roundCount,
@@ -344,10 +345,10 @@ export async function updateGameSchedule(
           matches: round.matches.map((match) => ({
             courtNumber: match.courtNumber,
             teamAIds: match.teamAIds.map((id) =>
-              id != null && id !== "" ? Number(id) : null
+              id != null && id !== "" ? id : null
             ),
             teamBIds: match.teamBIds.map((id) =>
-              id != null && id !== "" ? Number(id) : null
+              id != null && id !== "" ? id : null
             ),
           })),
         })),

@@ -495,6 +495,7 @@ export default function CreateFreeGamePage() {
           roundCount: rounds.length,
           gradeType: "REGIONAL",
           matchRecordMode: "RESULT",
+          location: trimmedLocation,
           participants: participants.map((participant) => ({
             clientId: participant.clientId,
             originalName: participant.name,
@@ -513,7 +514,7 @@ export default function CreateFreeGamePage() {
           })),
         });
 
-        const gameId = String(result.gameId);
+        const gameId = result.gameId;
         pushRecentGameId(gameId);
         setCreatedGameId(gameId);
         setStep(4);
