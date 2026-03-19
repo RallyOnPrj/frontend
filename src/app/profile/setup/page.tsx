@@ -145,7 +145,7 @@ export default function ProfileSetupPage() {
     const result = await createUserProfile(
       buildCreateProfilePayload({
         nickname: form.nickname,
-        districtId: Number(form.districtId),
+        districtId: form.districtId,
         regionalGrade: form.localGrade,
         nationalGrade: form.nationalGrade,
         birth: form.birthDate,

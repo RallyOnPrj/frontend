@@ -49,7 +49,7 @@ export interface OAuthLoginRequest {
 
 export interface UserProfileCreateRequest {
   nickname: string;
-  districtId: number;
+  districtId: string;
   regionalGrade?: BackendGrade;
   nationalGrade?: BackendGrade;
   birth: string;
@@ -57,7 +57,7 @@ export interface UserProfileCreateRequest {
 }
 
 export interface UserProfileUpdateRequest {
-  districtId?: number;
+  districtId?: string;
   regionalGrade?: BackendGrade;
   nationalGrade?: BackendGrade;
   birth?: string;
@@ -77,17 +77,17 @@ export interface ProfilePrefillResponse {
 }
 
 export interface Province {
-  id: number;
+  id: string;
   name: string;
 }
 
 export interface District {
-  id: number;
+  id: string;
   name: string;
 }
 
 interface UserProfileCreateResponse {
-  userId: number;
+  userId: string;
 }
 
 function debugLog(...args: unknown[]) {
@@ -212,7 +212,7 @@ export async function getMyProfile(): Promise<UserProfile | null> {
 
 export async function createUserProfile(
   payload: UserProfileCreateRequest
-): Promise<{ success: boolean; userId?: number; error?: string }> {
+): Promise<{ success: boolean; userId?: string; error?: string }> {
   try {
     const response = await apiRequest<UserProfileCreateResponse>(
       "/users/me/profile",
@@ -299,7 +299,7 @@ export async function getProvinces(): Promise<Province[]> {
 }
 
 export async function getDistricts(
-  provinceId: string | number,
+  provinceId: string,
   signal?: AbortSignal
 ): Promise<District[]> {
   try {
@@ -359,7 +359,7 @@ export function toCompactBirthDate(value: string) {
 
 export function buildCreateProfilePayload(input: {
   nickname: string;
-  districtId: number;
+  districtId: string;
   regionalGrade?: string;
   nationalGrade?: string;
   birth: string;
@@ -376,7 +376,7 @@ export function buildCreateProfilePayload(input: {
 }
 
 export function buildUpdateProfilePayload(input: {
-  districtId?: number;
+  districtId?: string;
   regionalGrade?: string;
   nationalGrade?: string;
   birth?: string;

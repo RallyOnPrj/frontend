@@ -14,7 +14,7 @@ export type MatchResult = "TEAM_A_WIN" | "TEAM_B_WIN" | "DRAW" | null;
 
 export interface Participant {
   id: string;
-  userId?: number | null;
+  userId?: string | null;
   name: string;
   displayName: string;
   gender: Gender;
@@ -51,7 +51,7 @@ export interface Game {
   rounds: GameRound[];
   status: GameStatus;
   shareCode: string;
-  createdBy: number;
+  createdBy: string;
   matchRecordMode: MatchRecordMode;
   gradeType: GradeType;
 }
@@ -69,7 +69,7 @@ export interface PublicGameSummary {
 
 export interface CreateGameParticipant {
   clientId: string;
-  userId?: number;
+  userId?: string;
   originalName: string;
   gender: Gender;
   grade: Grade;
@@ -91,7 +91,7 @@ export interface CreateGameRequest {
   gradeType: GradeType;
   matchRecordMode?: MatchRecordMode;
   location?: string;
-  managerIds?: number[];
+  managerIds?: string[];
   participants: CreateGameParticipant[];
   rounds: CreateGameRound[];
 }
@@ -100,7 +100,7 @@ export interface UpdateGameRequest {
   title?: string;
   matchRecordMode?: MatchRecordMode;
   gradeType?: GradeType;
-  managerIds?: number[];
+  managerIds?: string[];
 }
 
 export interface ScheduleDraftRound {
@@ -124,13 +124,13 @@ interface FreeGameDetailResponse {
   gradeType: GradeType;
   courtCount: number;
   roundCount: number;
-  organizerId: number;
+  organizerId: string;
   shareCode: string;
 }
 
 interface FreeGameParticipantResponse {
   participantId: string;
-  userId?: number | null;
+  userId?: string | null;
   displayName: string;
   gender: Gender;
   grade?: string | null;

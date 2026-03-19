@@ -206,7 +206,7 @@ function ProfileEditContent() {
 
     const profileResult = await updateUserProfile(
       buildUpdateProfilePayload({
-        districtId: Number(form.districtId),
+        districtId: form.districtId,
         regionalGrade: form.localGrade,
         nationalGrade: form.nationalGrade,
         birth: form.birthDate,
