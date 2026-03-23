@@ -1,6 +1,7 @@
 "use client";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.rallyon.test";
+const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || "https://auth.rallyon.test";
 
 export interface ProblemDetail {
   type?: string;
@@ -79,7 +80,7 @@ async function toApiError(response: Response, fallback: string) {
 
 async function refreshSession() {
   try {
-    const response = await fetch(`${API_URL}/auth/refresh`, {
+    const response = await fetch(`${AUTH_URL}/identity/token/refresh`, {
       method: "POST",
       credentials: "include",
       headers: {
@@ -94,6 +95,14 @@ async function refreshSession() {
 }
 
 async function executeRequest(path: string, options: ApiRequestOptions) {
+  return executeRequestToBaseUrl(API_URL, path, options);
+}
+
+async function executeRequestToBaseUrl(
+  baseUrl: string,
+  path: string,
+  options: ApiRequestOptions
+) {
   const body = normalizeBody(options.body);
   const headers = new Headers(options.headers);
 
@@ -105,12 +114,38 @@ async function executeRequest(path: string, options: ApiRequestOptions) {
     headers.set("Accept", "application/json");
   }
 
-  return fetch(`${API_URL}${path}`, {
+  return fetch(`${baseUrl}${path}`, {
     ...options,
     body,
     headers,
     credentials: "include",
   });
+}
+
+export async function authRequest<T = void>(
+  path: string,
+  options: ApiRequestOptions = {}
+): Promise<T> {
+  const { parseAs = "json" } = options;
+  const response = await executeRequestToBaseUrl(AUTH_URL, path, options);
+
+  if (!response.ok) {
+    throw await toApiError(response, `요청에 실패했습니다. (${response.status})`);
+  }
+
+  if (parseAs === "void" || response.status === 204) {
+    return undefined as T;
+  }
+
+  if (parseAs === "text") {
+    return (await response.text()) as T;
+  }
+
+  if (!isJsonLikeResponse(response.headers.get("content-type"))) {
+    return undefined as T;
+  }
+
+  return (await response.json()) as T;
 }
 
 export async function apiRequest<T = void>(
@@ -129,7 +164,7 @@ export async function apiRequest<T = void>(
     auth &&
     retryOnUnauthorized &&
     response.status === 401 &&
-    path !== "/auth/refresh"
+    path !== "/identity/token/refresh"
   ) {
     const refreshed = await refreshSession();
     if (refreshed) {
@@ -163,4 +198,4 @@ export function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError;
 }
 
-export { API_URL };
+export { API_URL, AUTH_URL };
