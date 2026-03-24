@@ -76,7 +76,9 @@ function SocialLoginButton({
       iconClassName: "h-[18px] w-[18px]",
       iconSize: 18,
       buttonClassName:
-        "border border-[#e2c400] bg-[#FEE500] text-[#191919] hover:bg-[#f7df00]",
+        "bg-[#FEE500] text-[rgba(0,0,0,0.85)] hover:opacity-95 hover:shadow-[0_10px_24px_rgba(0,0,0,0.08)] focus-visible:ring-[#FEE500] focus-visible:ring-offset-white",
+      contentClassName: "gap-3",
+      labelClassName: "text-base",
     },
     GOOGLE: {
       label: "Google로 로그인",
@@ -84,7 +86,9 @@ function SocialLoginButton({
       iconClassName: "h-[18px] w-[18px]",
       iconSize: 18,
       buttonClassName:
-        "border border-[#dadce0] bg-white text-[#1f1f1f] hover:bg-[#f8f9fa]",
+        "border border-[#dadce0] bg-white text-[#1f1f1f] hover:bg-[#f8f9fa] focus-visible:ring-zinc-300 focus-visible:ring-offset-white",
+      contentClassName: "gap-3",
+      labelClassName: "text-base",
     },
     APPLE: {
       label: "Apple로 로그인",
@@ -92,24 +96,30 @@ function SocialLoginButton({
       iconClassName: "h-6 w-6",
       iconSize: 24,
       buttonClassName:
-        "border border-zinc-950 bg-zinc-950 text-white hover:bg-zinc-800",
+        "border border-zinc-950 bg-zinc-950 text-white hover:bg-zinc-800 focus-visible:ring-zinc-950 focus-visible:ring-offset-white",
+      contentClassName: "gap-3",
+      labelClassName: "text-base",
     },
   }[provider];
 
   return (
     <a
       href={href}
-      className={`flex h-12 w-full items-center justify-center gap-3 rounded-xl px-4 text-sm font-medium transition-colors ${config.buttonClassName}`}
+      className={`flex h-12 w-full items-center justify-center rounded-xl px-4 font-medium transition-[background-color,border-color,color,opacity,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${config.buttonClassName}`}
     >
-      <Image
-        src={config.iconSrc}
-        alt=""
-        aria-hidden="true"
-        width={config.iconSize}
-        height={config.iconSize}
-        className={config.iconClassName}
-      />
-      <span>{config.label}</span>
+      <span
+        className={`inline-flex items-center justify-center ${config.contentClassName}`}
+      >
+        <Image
+          src={config.iconSrc}
+          alt=""
+          aria-hidden="true"
+          width={config.iconSize}
+          height={config.iconSize}
+          className={config.iconClassName}
+        />
+        <span className={config.labelClassName}>{config.label}</span>
+      </span>
     </a>
   );
 }
@@ -265,8 +275,8 @@ export default function LoginPageClient({
                   플레이 흐름까지
                 </h1>
                 <p className="mt-4 max-w-xl text-sm font-medium leading-7 text-zinc-400">
-                  RallyOn은 게임 생성, 참가자 합류, 프로필, 배드민턴 소식까지
-                  코트 안팎의 흐름을 한 서비스 안에서 자연스럽게 연결합니다.
+                  RallyOn은 게임을 만들고, 참가자를 모으고, 플레이 기록과
+                  배드민턴 소식까지 하나의 흐름으로 연결합니다.
                 </p>
               </div>
 
