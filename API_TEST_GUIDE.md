@@ -6,7 +6,7 @@
 
 1. `https://rallyon.test/login?returnTo=/court-manager` 접속
 2. 잠시 후 `https://auth.rallyon.test/identity/session/start?...` 로 이동되는지 확인
-3. 인증 서버 로그인 화면이 `https://auth.rallyon.test/login` 에서 프론트 UI로 열리는지 확인
+3. 인증 서버 로그인 화면이 `https://auth.rallyon.test/login` 에서 프론트 UI로 열리고, RallyOn 제품 메시지와 이메일/소셜 로그인 버튼이 보이는지 확인
 4. 로그인 성공 후 `https://rallyon.test/...` 로 돌아오는지 확인
 
 ### Network 탭에서 볼 것
@@ -64,6 +64,13 @@
 
 - `refresh_token` 쿠키가 `auth.rallyon.test`에만 설정돼 있는지 확인
 - 프론트가 `api`가 아니라 `auth` origin으로 refresh 요청을 보내는지 확인
+
+### 소셜 버튼이 안 보이는 경우
+
+- `OAUTH_ALLOWED_PROVIDERS`에 해당 provider가 포함돼 있는지 확인
+- Google은 `GOOGLE_OAUTH_ENABLED=true` 와 실제 클라이언트 값이 설정되어 있는지 확인
+- Apple은 `APPLE_OAUTH_ENABLED=true`, `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` 가 설정되어 있는지 확인
+- DUMMY는 `OAUTH_DUMMY_ENABLED=true` 와 `OAUTH_DUMMY_LOGIN_PAGE_VISIBLE=true` 둘 다 필요합니다
 
 ### CORS 에러가 나는 경우
 

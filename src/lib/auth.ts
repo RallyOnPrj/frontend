@@ -5,7 +5,7 @@ import { BackendGrade, toBackendGrade } from "./grade";
 
 const isDev = process.env.NODE_ENV === "development";
 
-export type AuthProvider = "KAKAO" | "GOOGLE" | "DUMMY";
+export type AuthProvider = "KAKAO" | "GOOGLE" | "APPLE" | "DUMMY";
 export type UserStatus = "PENDING" | "ACTIVE" | "DELETED";
 export type Gender = "MALE" | "FEMALE";
 
