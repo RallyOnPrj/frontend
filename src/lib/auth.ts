@@ -1,17 +1,25 @@
 "use client";
 
-import { apiRequest, isApiError, API_URL } from "./api";
+import { authRequest, apiRequest, isApiError, AUTH_URL } from "./api";
 import { BackendGrade, toBackendGrade } from "./grade";
 
-const KAKAO_CLIENT_ID = process.env.NEXT_PUBLIC_KAKAO_CLIENT_ID ?? "";
-const KAKAO_REDIRECT_URI = process.env.NEXT_PUBLIC_KAKAO_REDIRECT_URI ?? "";
-const DUMMY_REDIRECT_URI =
-  process.env.NEXT_PUBLIC_DUMMY_REDIRECT_URI ?? "";
 const isDev = process.env.NODE_ENV === "development";
 
-export type AuthProvider = "KAKAO" | "DUMMY";
+export type AuthProvider = "KAKAO" | "GOOGLE" | "APPLE" | "DUMMY";
 export type UserStatus = "PENDING" | "ACTIVE" | "DELETED";
 export type Gender = "MALE" | "FEMALE";
+
+export interface DummyLoginOption {
+  label: string;
+  startUrl: string;
+}
+
+export interface LoginContext {
+  hasSession: boolean;
+  returnTo: string;
+  allowedProviders: AuthProvider[];
+  dummyOptions: DummyLoginOption[];
+}
 
 export interface SessionUser {
   status: UserStatus;
@@ -39,12 +47,6 @@ export interface UserProfile {
 export interface AccountStatusResponse {
   status: UserStatus;
   hasProfile: boolean;
-}
-
-export interface OAuthLoginRequest {
-  provider: AuthProvider;
-  authorizationCode: string;
-  redirectUri: string;
 }
 
 export interface UserProfileCreateRequest {
@@ -96,28 +98,6 @@ function debugLog(...args: unknown[]) {
   }
 }
 
-function getRedirectUriByProvider(provider: AuthProvider) {
-  const redirectUri =
-    provider === "KAKAO" ? KAKAO_REDIRECT_URI : DUMMY_REDIRECT_URI;
-
-  if (!redirectUri) {
-    throw new Error(
-      `${provider} redirect URI is not configured. NEXT_PUBLIC_${provider}_REDIRECT_URI를 확인해주세요.`
-    );
-  }
-
-  if (
-    !redirectUri.startsWith("http://") &&
-    !redirectUri.startsWith("https://")
-  ) {
-    throw new Error(
-      `Invalid redirect URI format: ${redirectUri}. Must start with http:// or https://`
-    );
-  }
-
-  return redirectUri;
-}
-
 function toFriendlyError(error: unknown, fallback: string) {
   if (isApiError(error)) {
     return error.message;
@@ -130,53 +110,41 @@ function toFriendlyError(error: unknown, fallback: string) {
   return fallback;
 }
 
-export function getKakaoOAuthURL(
-  returnTo?: string,
-  forceLogin = false
-): string {
-  if (!KAKAO_CLIENT_ID || !KAKAO_REDIRECT_URI) {
-    throw new Error(
-      "Kakao OAuth 설정이 누락되었습니다. NEXT_PUBLIC_KAKAO_CLIENT_ID와 NEXT_PUBLIC_KAKAO_REDIRECT_URI를 확인해주세요."
-    );
+export function buildIdentitySessionStartUrl(input: {
+  provider?: AuthProvider;
+  returnTo?: string;
+  dummyCode?: string;
+}) {
+  const params = new URLSearchParams();
+  if (input.provider) {
+    params.set("provider", input.provider);
   }
-
-  if (returnTo && typeof window !== "undefined") {
-    sessionStorage.setItem("oauth_return_to", returnTo);
+  if (input.returnTo) {
+    params.set("returnTo", input.returnTo);
   }
+  if (input.dummyCode) {
+    params.set("dummyCode", input.dummyCode);
+  }
+  return `${AUTH_URL}/identity/session/start?${params.toString()}`;
+}
 
-  const qs = new URLSearchParams({
-    client_id: KAKAO_CLIENT_ID,
-    redirect_uri: KAKAO_REDIRECT_URI,
-    response_type: "code",
-    ...(forceLogin ? { prompt: "login" } : {}),
+export function startIdentitySession(input: {
+  provider?: AuthProvider;
+  returnTo?: string;
+  dummyCode?: string;
+}) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const url = buildIdentitySessionStartUrl(input);
+  debugLog("[Auth] Starting identity session:", url);
+  window.location.assign(url);
+}
+
+export async function getLoginContext(): Promise<LoginContext> {
+  return authRequest<LoginContext>("/identity/login/context", {
+    method: "GET",
   });
-
-  return `https://kauth.kakao.com/oauth/authorize?${qs.toString()}`;
-}
-
-export function getOAuthRedirectUri(provider: AuthProvider) {
-  const redirectUri = getRedirectUriByProvider(provider);
-  debugLog(`[Auth] Redirect URI for ${provider}:`, redirectUri);
-  return redirectUri;
-}
-
-export async function loginWithOAuth(
-  input: OAuthLoginRequest
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    await apiRequest("/auth/login", {
-      method: "POST",
-      body: input,
-      parseAs: "void",
-    });
-
-    return { success: true };
-  } catch (error) {
-    return {
-      success: false,
-      error: toFriendlyError(error, "로그인에 실패했습니다."),
-    };
-  }
 }
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
@@ -319,7 +287,7 @@ export async function getDistricts(
 
 export async function logout(): Promise<boolean> {
   try {
-    await apiRequest("/auth/logout", {
+    await authRequest("/identity/logout", {
       method: "POST",
       parseAs: "void",
     });
@@ -402,5 +370,3 @@ export function buildUpdateProfilePayload(input: {
       : {}),
   };
 }
-
-export { API_URL };
