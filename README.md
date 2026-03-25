@@ -1,4 +1,9 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RallyOn Frontend
+
+RallyOn 프론트엔드 애플리케이션입니다.
+앱 아키텍처와 유비쿼터스 언어의 canonical 기준은 [`backend/ARCHITECTURE.md`](../backend/ARCHITECTURE.md)를 따릅니다.
+
+아래 내용은 Next.js 개발 실행 기본 가이드입니다.
 
 ## Getting Started
 

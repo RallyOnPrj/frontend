@@ -5,13 +5,14 @@
 ## 1. 로그인 플로우 확인
 
 1. `https://rallyon.test/login?returnTo=/court-manager` 접속
-2. 잠시 후 `https://auth.rallyon.test/identity/session/start?...` 로 이동되는지 확인
-3. 인증 서버 로그인 화면이 `https://auth.rallyon.test/login` 에서 프론트 UI로 열리고, RallyOn 제품 메시지와 이메일/소셜 로그인 버튼이 보이는지 확인
+2. 잠시 후 `https://auth.rallyon.test/login?returnTo=/court-manager` 로 이동되는지 확인
+3. 인증 서버 로그인 화면이 `https://auth.rallyon.test/login` 에서 프론트 UI로 열리고, 내부적으로 `POST https://auth.rallyon.test/identity/sessions` 호출 후 세션이 준비되는지 확인
 4. 로그인 성공 후 `https://rallyon.test/...` 로 돌아오는지 확인
 
 ### Network 탭에서 볼 것
 
-- `GET https://auth.rallyon.test/identity/session/start`
+- `POST https://auth.rallyon.test/identity/sessions`
+- `GET https://auth.rallyon.test/identity/sessions/current`
 - `GET https://auth.rallyon.test/oauth2/authorize`
 - `POST https://auth.rallyon.test/oauth2/token`
 - 이후 보호 API 호출은 `https://api.rallyon.test/users/me`
@@ -32,7 +33,7 @@
 ## 3. 자동 refresh 확인
 
 1. 보호 API 호출이 401을 받으면
-2. 프론트가 `POST https://auth.rallyon.test/identity/token/refresh` 를 호출하는지 확인
+2. 프론트가 `POST https://auth.rallyon.test/identity/tokens/refresh` 를 호출하는지 확인
 3. refresh 성공 후 원래 API 요청이 다시 성공하는지 확인
 
 ## 4. 환경 변수 확인
