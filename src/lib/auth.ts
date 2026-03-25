@@ -65,6 +65,8 @@ export interface UserProfileCreateRequest {
 }
 
 export interface UserProfileUpdateRequest {
+  nickname?: string;
+  tag?: string;
   districtId?: string;
   regionalGrade?: BackendGrade;
   nationalGrade?: BackendGrade;
@@ -74,12 +76,7 @@ export interface UserProfileUpdateRequest {
   gender?: Gender;
 }
 
-export interface UserProfileIdentityRequest {
-  nickname?: string;
-  tag?: string;
-}
-
-export interface ProfilePrefillResponse {
+export interface ProfileDefaultsResponse {
   suggestedNickname?: string | null;
   hasOauthNickname?: boolean;
 }
@@ -213,29 +210,9 @@ export async function updateUserProfile(
   }
 }
 
-export async function updateProfileIdentity(
-  payload: UserProfileIdentityRequest
-): Promise<{ success: boolean; error?: string }> {
+export async function getProfileDefaults(): Promise<ProfileDefaultsResponse | null> {
   try {
-    await apiRequest("/users/me/profile/identity", {
-      method: "PATCH",
-      auth: true,
-      body: payload,
-      parseAs: "void",
-    });
-
-    return { success: true };
-  } catch (error) {
-    return {
-      success: false,
-      error: toFriendlyError(error, "닉네임 저장에 실패했습니다."),
-    };
-  }
-}
-
-export async function getProfilePrefill(): Promise<ProfilePrefillResponse | null> {
-  try {
-    return await apiRequest<ProfilePrefillResponse>("/users/me/profile/prefill", {
+    return await apiRequest<ProfileDefaultsResponse>("/users/me/profile/defaults", {
       method: "GET",
       auth: true,
     });
@@ -337,6 +314,8 @@ export function buildCreateProfilePayload(input: {
 }
 
 export function buildUpdateProfilePayload(input: {
+  nickname?: string;
+  tag?: string;
   districtId?: string;
   regionalGrade?: string;
   nationalGrade?: string;
@@ -346,6 +325,8 @@ export function buildUpdateProfilePayload(input: {
   profileImageUrl?: string;
 }): UserProfileUpdateRequest {
   return {
+    ...(input.nickname != null ? { nickname: input.nickname.trim() } : {}),
+    ...(input.tag != null ? { tag: input.tag.trim() } : {}),
     ...(input.districtId ? { districtId: input.districtId } : {}),
     ...(input.regionalGrade
       ? { regionalGrade: toBackendGrade(input.regionalGrade) }

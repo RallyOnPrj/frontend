@@ -11,7 +11,7 @@ import {
   buildCreateProfilePayload,
   createUserProfile,
   getDistricts,
-  getProfilePrefill,
+  getProfileDefaults,
   getProvinces,
 } from "@/lib/auth";
 import { useAuth } from "@/hooks/useAuth";
@@ -84,7 +84,7 @@ export default function ProfileSetupPage() {
     if (!isLoading && isLoggedIn) {
       const loadInitialData = async () => {
         const [prefill, nextProvinces] = await Promise.all([
-          getProfilePrefill(),
+          getProfileDefaults(),
           getProvinces(),
         ]);
 

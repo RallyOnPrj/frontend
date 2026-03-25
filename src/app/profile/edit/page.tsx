@@ -8,14 +8,12 @@ import {
   District,
   Gender,
   Province,
-  UserProfile,
   buildUpdateProfilePayload,
   deleteAccount,
   formatBirthDateForInput,
   getDistricts,
   getMyProfile,
   getProvinces,
-  updateProfileIdentity,
   updateUserProfile,
 } from "@/lib/auth";
 import { toProfileGradeSelection } from "@/lib/grade";
@@ -48,7 +46,6 @@ function ProfileEditContent() {
     birthDate: "",
     gender: "",
   });
-  const [initialProfile, setInitialProfile] = useState<UserProfile | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -101,7 +98,6 @@ function ProfileEditContent() {
             return;
           }
 
-          setInitialProfile(profile);
           setProvinces(nextProvinces);
 
           const baseForm: FormState = {
@@ -191,21 +187,9 @@ function ProfileEditContent() {
     const returnTo = searchParams.get("returnTo") || "/profile";
     setIsSubmitting(true);
 
-    const nicknameChanged = form.nickname.trim() !== (initialProfile?.nickname || "");
-    if (nicknameChanged) {
-      const identityResult = await updateProfileIdentity({
-        nickname: form.nickname.trim(),
-      });
-
-      if (!identityResult.success) {
-        setErrorMessage(identityResult.error || "닉네임 저장에 실패했습니다.");
-        setIsSubmitting(false);
-        return;
-      }
-    }
-
     const profileResult = await updateUserProfile(
       buildUpdateProfilePayload({
+        nickname: form.nickname,
         districtId: form.districtId,
         regionalGrade: form.localGrade,
         nationalGrade: form.nationalGrade,
@@ -260,7 +244,7 @@ function ProfileEditContent() {
         <div className="rounded-none border-2 border-zinc-200 bg-white p-6 md:p-10">
           <div className="mb-8 border-b-2 border-zinc-100 pb-6">
             <p className="max-w-xl text-sm font-medium leading-relaxed text-zinc-500">
-              현재 백엔드 계약에 맞춰 닉네임은 identity API로, 나머지 프로필은 profile API로 분리해 저장합니다.
+              닉네임과 프로필 정보를 하나의 프로필 업데이트 흐름으로 저장합니다.
             </p>
           </div>
 
