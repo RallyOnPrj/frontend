@@ -1,104 +1,30 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { ArrowRight } from "lucide-react";
+import { getAuthLoadFailureMessage, resolveAuthErrorMessage } from "@/components/auth/auth-error-messages";
 import {
   AuthFailureState,
   AuthLoadingState,
   AuthPageScene,
 } from "@/components/auth/AuthPageScene";
-import {
-  getLoginContext,
-  LoginContext,
-  startIdentitySession,
-} from "@/lib/auth";
-
-const ERROR_MESSAGES: Record<string, string> = {
-  social_login_failed: "소셜 로그인 연결에 실패했어요. 잠시 후 다시 시도해주세요.",
-  invalid_social_callback:
-    "소셜 로그인 응답을 확인하지 못했어요. 다시 시도해주세요.",
-  authorization_failed: "로그인 연결이 끊겼어요. 다시 로그인해주세요.",
-  token_exchange_failed:
-    "로그인 연결을 마무리하지 못했어요. 잠시 후 다시 시도해주세요.",
-  invalid_authorization_state:
-    "로그인 준비 상태가 만료되었어요. 다시 시작해주세요.",
-  local_login_failed: "이메일 또는 비밀번호가 올바르지 않습니다.",
-  login_session_expired:
-    "로그인 세션이 만료되었어요. 다시 시작한 뒤 로그인해주세요.",
-};
+import { useAuthScreen } from "@/hooks/useAuthScreen";
 
 interface LoginPageClientProps {
   returnTo: string;
   errorCode?: string;
 }
 
-function resolveErrorMessage(errorCode?: string) {
-  if (!errorCode) {
-    return null;
-  }
-
-  return (
-    ERROR_MESSAGES[errorCode] ||
-    "로그인에 실패했어요. 잠시 후 다시 시도해주세요."
-  );
-}
-
 export default function LoginPageClient({
   returnTo,
   errorCode,
 }: LoginPageClientProps) {
-  const [loginContext, setLoginContext] = useState<LoginContext | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
-  const hasRestartedRef = useRef(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const context = await getLoginContext();
-        if (cancelled) {
-          return;
-        }
-        setLoginContext(context);
-        setLoadFailed(false);
-      } catch {
-        if (cancelled) {
-          return;
-        }
-        setLoadFailed(true);
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    void load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (
-      loading ||
-      loadFailed ||
-      hasRestartedRef.current ||
-      !loginContext ||
-      loginContext.hasSession ||
-      errorCode
-    ) {
-      return;
-    }
-
-    hasRestartedRef.current = true;
-    startIdentitySession({ returnTo, screen: "login" });
-  }, [errorCode, loadFailed, loading, loginContext, returnTo]);
-
-  const errorMessage = resolveErrorMessage(errorCode);
+  const { session, loading, loadFailed, effectiveReturnTo, restart } =
+    useAuthScreen({
+      screen: "login",
+      returnTo,
+      errorCode,
+    });
+  const errorMessage = resolveAuthErrorMessage("login", errorCode);
 
   if (loading) {
     return <AuthLoadingState />;
@@ -107,20 +33,19 @@ export default function LoginPageClient({
   if (loadFailed) {
     return (
       <AuthFailureState
-        returnTo={returnTo}
-        screen="login"
-        message="네트워크 상태를 확인한 뒤 다시 시도해주세요. 문제가 계속되면 인증 흐름을 새로 시작할 수 있습니다."
+        message={getAuthLoadFailureMessage()}
+        onRestart={() => void restart()}
       />
     );
   }
 
-  if (!loginContext?.hasSession) {
+  if (!session?.hasSession) {
     if (!errorMessage) {
       return <AuthLoadingState />;
     }
 
     return (
-      <AuthFailureState returnTo={returnTo} screen="login" message={errorMessage} />
+      <AuthFailureState message={errorMessage} onRestart={() => void restart()} />
     );
   }
 
@@ -135,10 +60,10 @@ export default function LoginPageClient({
       form={
         <form
           method="post"
-          action="/identity/local/login"
+          action="/identity/sessions/local"
           className="space-y-3"
         >
-          <input type="hidden" name="returnTo" value={returnTo} />
+          <input type="hidden" name="returnTo" value={effectiveReturnTo} />
           <label className="block space-y-2">
             <span className="text-[10px] font-mono font-bold uppercase tracking-[0.28em] text-zinc-500">
               Email
@@ -176,7 +101,7 @@ export default function LoginPageClient({
         <p className="text-sm font-medium text-zinc-600">
           아직 계정이 없으신가요?{" "}
           <a
-            href={`/signup?returnTo=${encodeURIComponent(returnTo)}`}
+            href={`/signup?returnTo=${encodeURIComponent(effectiveReturnTo)}`}
             className="font-semibold text-emerald-600 underline-offset-4 hover:underline"
           >
             회원가입

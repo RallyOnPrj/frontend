@@ -1,6 +1,6 @@
 "use client";
 
-import { authRequest, apiRequest, isApiError, AUTH_URL } from "./api";
+import { authRequest, apiRequest, isApiError } from "./api";
 import { BackendGrade, toBackendGrade } from "./grade";
 
 const isDev = process.env.NODE_ENV === "development";
@@ -15,11 +15,16 @@ export interface DummyLoginOption {
   startUrl: string;
 }
 
-export interface LoginContext {
+export interface IdentitySessionState {
   hasSession: boolean;
   returnTo: string;
+  screen?: AuthScreen | null;
   allowedProviders: AuthProvider[];
   dummyOptions: DummyLoginOption[];
+}
+
+interface CreateIdentitySessionResponse {
+  nextUrl: string;
 }
 
 export interface SessionUser {
@@ -111,44 +116,26 @@ function toFriendlyError(error: unknown, fallback: string) {
   return fallback;
 }
 
-export function buildIdentitySessionStartUrl(input: {
+export async function createIdentitySession(input: {
   provider?: AuthProvider;
   screen?: AuthScreen;
   returnTo?: string;
   dummyCode?: string;
-}) {
-  const params = new URLSearchParams();
-  if (input.provider) {
-    params.set("provider", input.provider);
-  }
-  if (input.screen) {
-    params.set("screen", input.screen);
-  }
-  if (input.returnTo) {
-    params.set("returnTo", input.returnTo);
-  }
-  if (input.dummyCode) {
-    params.set("dummyCode", input.dummyCode);
-  }
-  return `${AUTH_URL}/identity/session/start?${params.toString()}`;
+}): Promise<string> {
+  const response = await authRequest<CreateIdentitySessionResponse>(
+    "/identity/sessions",
+    {
+      method: "POST",
+      body: input,
+    }
+  );
+
+  debugLog("[Auth] Created identity session:", response.nextUrl);
+  return response.nextUrl;
 }
 
-export function startIdentitySession(input: {
-  provider?: AuthProvider;
-  screen?: AuthScreen;
-  returnTo?: string;
-  dummyCode?: string;
-}) {
-  if (typeof window === "undefined") {
-    return;
-  }
-  const url = buildIdentitySessionStartUrl(input);
-  debugLog("[Auth] Starting identity session:", url);
-  window.location.assign(url);
-}
-
-export async function getLoginContext(): Promise<LoginContext> {
-  return authRequest<LoginContext>("/identity/login/context", {
+export async function getCurrentIdentitySession(): Promise<IdentitySessionState> {
+  return authRequest<IdentitySessionState>("/identity/sessions/current", {
     method: "GET",
   });
 }
@@ -293,8 +280,8 @@ export async function getDistricts(
 
 export async function logout(): Promise<boolean> {
   try {
-    await authRequest("/identity/logout", {
-      method: "POST",
+    await authRequest("/identity/sessions/current", {
+      method: "DELETE",
       parseAs: "void",
     });
     return true;

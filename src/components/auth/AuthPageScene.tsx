@@ -12,12 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/ui/logo";
-import {
-  AuthProvider,
-  AuthScreen,
-  DummyLoginOption,
-  startIdentitySession,
-} from "@/lib/auth";
+import { AuthProvider, DummyLoginOption } from "@/lib/auth";
 
 const SERVICE_HIGHLIGHTS = [
   {
@@ -112,13 +107,11 @@ export function AuthLoadingState() {
 }
 
 export function AuthFailureState({
-  returnTo,
   message,
-  screen,
+  onRestart,
 }: {
-  returnTo: string;
   message: string;
-  screen: AuthScreen;
+  onRestart: () => void;
 }) {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-zinc-950 px-6 text-white">
@@ -132,7 +125,7 @@ export function AuthFailureState({
         </h1>
         <p className="mt-3 text-sm leading-7 text-zinc-400">{message}</p>
         <Button
-          onClick={() => startIdentitySession({ returnTo, screen })}
+          onClick={onRestart}
           className="mt-7 h-12 w-full rounded-none bg-orange-500 text-sm font-bold uppercase tracking-[0.18em] text-zinc-950 hover:bg-orange-400"
         >
           다시 시작
@@ -258,7 +251,7 @@ export function AuthPageScene({
                       <SocialLoginButton
                         key={provider}
                         provider={provider}
-                        href={`/identity/social/start/${provider}`}
+                        href={`/identity/oauth/${provider}`}
                       />
                     ))}
                   </div>

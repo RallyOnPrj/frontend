@@ -80,7 +80,7 @@ async function toApiError(response: Response, fallback: string) {
 
 async function refreshSession() {
   try {
-    const response = await fetch(`${AUTH_URL}/identity/token/refresh`, {
+    const response = await fetch(`${AUTH_URL}/identity/tokens/refresh`, {
       method: "POST",
       credentials: "include",
       headers: {
@@ -164,7 +164,7 @@ export async function apiRequest<T = void>(
     auth &&
     retryOnUnauthorized &&
     response.status === 401 &&
-    path !== "/identity/token/refresh"
+    path !== "/identity/tokens/refresh"
   ) {
     const refreshed = await refreshSession();
     if (refreshed) {

@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
-  buildSessionStartUrl,
+  buildAuthPageUrl,
   getAuthUrl,
   normalizeReturnTo,
 } from "../auth-page-utils";
@@ -23,7 +23,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
   const authHost = new URL(getAuthUrl()).host;
 
   if (host !== authHost) {
-    redirect(buildSessionStartUrl(returnTo, "signup"));
+    redirect(buildAuthPageUrl(returnTo, "signup"));
   }
 
   return <SignupPageClient returnTo={returnTo} errorCode={errorCode} />;
