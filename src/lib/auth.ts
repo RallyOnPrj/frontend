@@ -6,6 +6,7 @@ import { BackendGrade, toBackendGrade } from "./grade";
 const isDev = process.env.NODE_ENV === "development";
 
 export type AuthProvider = "KAKAO" | "GOOGLE" | "APPLE" | "DUMMY";
+export type AuthScreen = "login" | "signup";
 export type UserStatus = "PENDING" | "ACTIVE" | "DELETED";
 export type Gender = "MALE" | "FEMALE";
 
@@ -112,12 +113,16 @@ function toFriendlyError(error: unknown, fallback: string) {
 
 export function buildIdentitySessionStartUrl(input: {
   provider?: AuthProvider;
+  screen?: AuthScreen;
   returnTo?: string;
   dummyCode?: string;
 }) {
   const params = new URLSearchParams();
   if (input.provider) {
     params.set("provider", input.provider);
+  }
+  if (input.screen) {
+    params.set("screen", input.screen);
   }
   if (input.returnTo) {
     params.set("returnTo", input.returnTo);
@@ -130,6 +135,7 @@ export function buildIdentitySessionStartUrl(input: {
 
 export function startIdentitySession(input: {
   provider?: AuthProvider;
+  screen?: AuthScreen;
   returnTo?: string;
   dummyCode?: string;
 }) {
