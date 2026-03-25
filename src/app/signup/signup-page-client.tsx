@@ -79,8 +79,8 @@ export default function SignupPageClient({
       description="이메일 계정을 만들고 바로 프로필 설정까지 이어서 완료하세요."
       errorMessage={errorMessage}
       socialLabel="Social Start"
-      allowedProviders={loginContext.allowedProviders}
-      dummyOptions={loginContext.dummyOptions}
+      allowedProviders={session.allowedProviders}
+      dummyOptions={session.dummyOptions}
       form={
         <form
           method="post"
