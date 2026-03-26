@@ -66,65 +66,69 @@ export default function MainHeader() {
 
         <div className="flex items-center gap-4">
           <div className="hidden md:flex md:gap-2">
-            {!isLoading &&
-              (isLoggedIn ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      className="gap-2 rounded-none text-xs font-bold uppercase tracking-widest text-zinc-300 hover:bg-zinc-800 hover:text-white"
-                    >
-                      <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-emerald-500 text-zinc-950">
-                        <User className="h-3 w-3" />
-                      </div>
-                      {user?.nickname || "My Account"}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    className="w-48 rounded-none border-2 border-zinc-800 bg-zinc-950 text-zinc-300"
-                  >
-                    <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">
-                      내 계정
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator className="bg-zinc-800" />
-                    <DropdownMenuItem
-                      asChild
-                      className="cursor-pointer rounded-none text-xs font-bold uppercase tracking-widest focus:bg-zinc-800 focus:text-white"
-                    >
-                      <Link href="/profile">
-                        <User className="mr-2 h-4 w-4" />
-                        프로필
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="cursor-pointer rounded-none text-xs font-bold uppercase tracking-widest focus:bg-zinc-800 focus:text-white"
-                      onClick={handleLogout}
-                    >
-                      <LogOut className="mr-2 h-4 w-4" />
-                      로그아웃
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <>
+            {isLoading ? (
+              <div className="flex items-center gap-2">
+                <div className="h-10 w-24 animate-pulse rounded-none border border-zinc-800 bg-zinc-900" />
+                <div className="h-10 w-28 animate-pulse rounded-none bg-zinc-800" />
+              </div>
+            ) : isLoggedIn ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    asChild
-                    className="rounded-none text-xs font-bold uppercase tracking-widest text-zinc-300 hover:bg-zinc-800 hover:text-white"
+                    className="gap-2 rounded-none text-xs font-bold uppercase tracking-widest text-zinc-300 hover:bg-zinc-800 hover:text-white"
                   >
-                    <Link href={`/login?returnTo=${encodeURIComponent(pathname || "/")}`}>
-                      로그인
+                    <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-emerald-500 text-zinc-950">
+                      <User className="h-3 w-3" />
+                    </div>
+                    {user?.nickname || "My Account"}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-48 rounded-none border-2 border-zinc-800 bg-zinc-950 text-zinc-300"
+                >
+                  <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">
+                    내 계정
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-zinc-800" />
+                  <DropdownMenuItem
+                    asChild
+                    className="cursor-pointer rounded-none text-xs font-bold uppercase tracking-widest focus:bg-zinc-800 focus:text-white"
+                  >
+                    <Link href="/profile">
+                      <User className="mr-2 h-4 w-4" />
+                      프로필
                     </Link>
-                  </Button>
-                  <Button
-                    asChild
-                    className="rounded-none bg-orange-500 text-xs font-bold uppercase tracking-widest text-zinc-950 hover:bg-orange-400"
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="cursor-pointer rounded-none text-xs font-bold uppercase tracking-widest focus:bg-zinc-800 focus:text-white"
+                    onClick={handleLogout}
                   >
-                    <Link href="/login?returnTo=%2Fcourt-manager">시작하기</Link>
-                  </Button>
-                </>
-              ))}
+                    <LogOut className="mr-2 h-4 w-4" />
+                    로그아웃
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  asChild
+                  className="rounded-none text-xs font-bold uppercase tracking-widest text-zinc-300 hover:bg-zinc-800 hover:text-white"
+                >
+                  <Link href={`/login?returnTo=${encodeURIComponent(pathname || "/")}`}>
+                    로그인
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  className="rounded-none bg-orange-500 text-xs font-bold uppercase tracking-widest text-zinc-950 hover:bg-orange-400"
+                >
+                  <Link href="/login?returnTo=%2Fcourt-manager">시작하기</Link>
+                </Button>
+              </>
+            )}
           </div>
           <Button variant="ghost" size="icon" className="rounded-none text-zinc-300 hover:bg-zinc-800 hover:text-white md:hidden">
             <Menu className="h-6 w-6" />
