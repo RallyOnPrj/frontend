@@ -83,17 +83,17 @@ export default function ProfileSetupPage() {
   useEffect(() => {
     if (!isLoading && isLoggedIn) {
       const loadInitialData = async () => {
-        const [prefill, nextProvinces] = await Promise.all([
+        const [defaults, nextProvinces] = await Promise.all([
           getProfileDefaults(),
           getProvinces(),
         ]);
 
         setProvinces(nextProvinces);
 
-        if (prefill?.hasOauthNickname && prefill.suggestedNickname) {
+        if (defaults?.hasSuggestedNickname && defaults.suggestedNickname) {
           setForm((prev) => ({
             ...prev,
-            nickname: prefill.suggestedNickname || prev.nickname,
+            nickname: defaults.suggestedNickname || prev.nickname,
           }));
         }
       };

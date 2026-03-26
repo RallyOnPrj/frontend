@@ -7,7 +7,7 @@ const isDev = process.env.NODE_ENV === "development";
 
 export type AuthProvider = "KAKAO" | "GOOGLE" | "APPLE" | "DUMMY";
 export type AuthScreen = "login" | "signup";
-export type UserStatus = "PENDING" | "ACTIVE" | "DELETED";
+export type UserStatus = "PENDING" | "ACTIVE";
 export type Gender = "MALE" | "FEMALE";
 
 export interface DummyLoginOption {
@@ -78,7 +78,7 @@ export interface UserProfileUpdateRequest {
 
 export interface ProfileDefaultsResponse {
   suggestedNickname?: string | null;
-  hasOauthNickname?: boolean;
+  hasSuggestedNickname?: boolean;
 }
 
 export interface Province {
@@ -92,7 +92,7 @@ export interface District {
 }
 
 interface UserProfileCreateResponse {
-  userId: string;
+  identityAccountId: string;
 }
 
 function debugLog(...args: unknown[]) {
@@ -170,7 +170,7 @@ export async function getMyProfile(): Promise<UserProfile | null> {
 
 export async function createUserProfile(
   payload: UserProfileCreateRequest
-): Promise<{ success: boolean; userId?: string; error?: string }> {
+): Promise<{ success: boolean; identityAccountId?: string; error?: string }> {
   try {
     const response = await apiRequest<UserProfileCreateResponse>(
       "/users/me/profile",
@@ -181,7 +181,7 @@ export async function createUserProfile(
       }
     );
 
-    return { success: true, userId: response.userId };
+    return { success: true, identityAccountId: response.identityAccountId };
   } catch (error) {
     return {
       success: false,
