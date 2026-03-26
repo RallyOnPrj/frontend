@@ -92,7 +92,7 @@ export interface District {
 }
 
 interface UserProfileCreateResponse {
-  identityAccountId: string;
+  accountId: string;
 }
 
 function debugLog(...args: unknown[]) {
@@ -170,7 +170,7 @@ export async function getMyProfile(): Promise<UserProfile | null> {
 
 export async function createUserProfile(
   payload: UserProfileCreateRequest
-): Promise<{ success: boolean; identityAccountId?: string; error?: string }> {
+): Promise<{ success: boolean; accountId?: string; error?: string }> {
   try {
     const response = await apiRequest<UserProfileCreateResponse>(
       "/users/me/profile",
@@ -181,7 +181,7 @@ export async function createUserProfile(
       }
     );
 
-    return { success: true, identityAccountId: response.identityAccountId };
+    return { success: true, accountId: response.accountId };
   } catch (error) {
     return {
       success: false,

@@ -14,7 +14,7 @@ export type MatchResult = "TEAM_A_WIN" | "TEAM_B_WIN" | "DRAW" | null;
 
 export interface Participant {
   id: string;
-  identityAccountId?: string | null;
+  accountId?: string | null;
   name: string;
   displayName: string;
   gender: Gender;
@@ -69,7 +69,7 @@ export interface PublicGameSummary {
 
 export interface CreateGameParticipant {
   clientId: string;
-  identityAccountId?: string;
+  accountId?: string;
   originalName: string;
   gender: Gender;
   grade: Grade;
@@ -130,7 +130,7 @@ interface FreeGameDetailResponse {
 
 interface FreeGameParticipantResponse {
   participantId: string;
-  identityAccountId?: string | null;
+  accountId?: string | null;
   displayName: string;
   gender: Gender;
   grade?: string | null;
@@ -174,7 +174,7 @@ function toPair(ids: Array<string | null> | undefined): [string | null, string |
 function mapParticipant(response: FreeGameParticipantResponse): Participant {
   return {
     id: response.participantId,
-    identityAccountId: response.identityAccountId ?? null,
+    accountId: response.accountId ?? null,
     name: response.displayName,
     displayName: response.displayName,
     gender: response.gender,
