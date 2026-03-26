@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 
 const TIME_STEP_MINUTES = 10;
 type Meridiem = "AM" | "PM";
+type SessionDateTimePickerMode = "date-time" | "date";
+type DateBoundary = "future" | "past" | "any";
 
 function pad(value: number) {
   return String(value).padStart(2, "0");
@@ -25,7 +27,32 @@ function addMonths(date: Date, months: number) {
   return new Date(date.getFullYear(), date.getMonth() + months, 1);
 }
 
-function parseDateTimeValue(value: string) {
+function addYears(date: Date, years: number) {
+  return new Date(date.getFullYear() + years, date.getMonth(), 1);
+}
+
+function parseDateValue(value: string) {
+  const normalizedValue = value.includes("T") ? value.split("T")[0] : value;
+  if (!normalizedValue) {
+    return undefined;
+  }
+
+  const [year, month, day] = normalizedValue.split("-").map(Number);
+  if ([year, month, day].some((segment) => Number.isNaN(segment))) {
+    return undefined;
+  }
+
+  return new Date(year, month - 1, day);
+}
+
+function parsePickerValue(value: string, mode: SessionDateTimePickerMode) {
+  if (mode === "date") {
+    return {
+      day: parseDateValue(value),
+      time: "",
+    };
+  }
+
   if (!value) {
     return { day: undefined, time: "" };
   }
@@ -35,25 +62,33 @@ function parseDateTimeValue(value: string) {
     return { day: undefined, time: "" };
   }
 
-  const [year, month, day] = datePart.split("-").map(Number);
+  const day = parseDateValue(datePart);
   const [hours, minutes] = timePart.split(":").map(Number);
-  if (
-    [year, month, day, hours, minutes].some((segment) => Number.isNaN(segment))
-  ) {
+  if (!day || [hours, minutes].some((segment) => Number.isNaN(segment))) {
     return { day: undefined, time: "" };
   }
 
   return {
-    day: new Date(year, month - 1, day),
+    day,
     time: `${pad(hours)}:${pad(minutes)}`,
   };
 }
 
-function buildDateTimeValue(day: Date, time: string) {
+function buildPickerValue(
+  day: Date,
+  time: string,
+  mode: SessionDateTimePickerMode
+) {
+  const datePart = `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(
+    day.getDate()
+  )}`;
+
+  if (mode === "date") {
+    return datePart;
+  }
+
   const [hours, minutes] = time.split(":").map(Number);
-  return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}T${pad(
-    hours
-  )}:${pad(minutes)}`;
+  return `${datePart}T${pad(hours)}:${pad(minutes)}`;
 }
 
 function formatDateLabel(day: Date) {
@@ -96,20 +131,27 @@ function getTimeDraft(time: string): {
   };
 }
 
-function to24HourTime(
-  meridiem: Meridiem,
-  hour: number,
-  minute: number
-) {
+function to24HourTime(meridiem: Meridiem, hour: number, minute: number) {
   const normalizedHour =
     meridiem === "AM" ? (hour === 12 ? 0 : hour) : hour === 12 ? 12 : hour + 12;
 
   return `${pad(normalizedHour)}:${pad(minute)}`;
 }
 
-function formatDateTimeLabel(value: string) {
-  const { day, time } = parseDateTimeValue(value);
-  if (!day || !time) {
+function formatPickerLabel(value: string, mode: SessionDateTimePickerMode) {
+  const { day, time } = parsePickerValue(value, mode);
+  if (!day) {
+    return null;
+  }
+
+  if (mode === "date") {
+    return {
+      date: formatDateLabel(day),
+      time: null,
+    };
+  }
+
+  if (!time) {
     return null;
   }
 
@@ -145,16 +187,27 @@ function getAvailableTimes(day: Date, now: Date) {
   return times;
 }
 
+function getDefaultDateBoundary(mode: SessionDateTimePickerMode): DateBoundary {
+  return mode === "date-time" ? "future" : "past";
+}
+
 export function SessionDateTimePicker({
   value,
   onChange,
   error = false,
+  mode = "date-time",
+  dateBoundary,
+  placeholder,
 }: {
   value: string;
   onChange: (value: string) => void;
   error?: boolean;
+  mode?: SessionDateTimePickerMode;
+  dateBoundary?: DateBoundary;
+  placeholder?: string;
 }) {
-  const initialDraft = getTimeDraft(parseDateTimeValue(value).time);
+  const effectiveDateBoundary = dateBoundary ?? getDefaultDateBoundary(mode);
+  const initialDraft = getTimeDraft(parsePickerValue(value, mode).time);
   const [isOpen, setIsOpen] = useState(false);
   const [placement, setPlacement] = useState<"bottom" | "top">("bottom");
   const [meridiem, setMeridiem] = useState<Meridiem>(initialDraft.meridiem);
@@ -163,11 +216,24 @@ export function SessionDateTimePicker({
   const [timeError, setTimeError] = useState("");
   const rootRef = useRef<HTMLDivElement | null>(null);
   const now = new Date();
-  const firstSelectableDay = startOfDay(now);
-  const visibleMonthStart = startOfMonth(now);
-  const visibleMonthEnd = startOfMonth(addMonths(now, 2));
-  const { day: selectedDay, time: selectedTime } = parseDateTimeValue(value);
-  const selectedLabel = formatDateTimeLabel(value);
+  const today = startOfDay(now);
+  const { day: selectedDay, time: selectedTime } = parsePickerValue(value, mode);
+  const selectedLabel = formatPickerLabel(value, mode);
+  const visibleMonthStart =
+    effectiveDateBoundary === "past"
+      ? startOfMonth(addYears(now, -100))
+      : effectiveDateBoundary === "future"
+      ? startOfMonth(now)
+      : startOfMonth(addYears(now, -1));
+  const visibleMonthEnd =
+    effectiveDateBoundary === "past"
+      ? startOfMonth(now)
+      : effectiveDateBoundary === "future"
+      ? startOfMonth(addMonths(now, 2))
+      : startOfMonth(addYears(now, 1));
+  const defaultMonth =
+    selectedDay ??
+    (effectiveDateBoundary === "past" ? addYears(now, -20) : startOfMonth(now));
 
   const syncDrafts = (time: string) => {
     const draft = getTimeDraft(time);
@@ -204,9 +270,12 @@ export function SessionDateTimePicker({
       const rect = rootRef.current.getBoundingClientRect();
       const viewportHeight = window.innerHeight;
       const spaceAbove = rect.top;
+      const requiredSpace = mode === "date" ? 360 : 420;
       const spaceBelow = viewportHeight - rect.bottom;
 
-      setPlacement(spaceBelow < 420 && spaceAbove > spaceBelow ? "top" : "bottom");
+      setPlacement(
+        spaceBelow < requiredSpace && spaceAbove > spaceBelow ? "top" : "bottom"
+      );
       syncDrafts(selectedTime);
     }
 
@@ -215,6 +284,12 @@ export function SessionDateTimePicker({
 
   const handleDaySelect = (day?: Date) => {
     if (!day) {
+      return;
+    }
+
+    if (mode === "date") {
+      onChange(buildPickerValue(day, "", mode));
+      setIsOpen(false);
       return;
     }
 
@@ -228,11 +303,11 @@ export function SessionDateTimePicker({
       : availableTimes[0];
 
     syncDrafts(nextTime);
-    onChange(buildDateTimeValue(day, nextTime));
+    onChange(buildPickerValue(day, nextTime, mode));
   };
 
   const applyManualTime = () => {
-    if (!selectedDay) {
+    if (!selectedDay || mode === "date") {
       return;
     }
 
@@ -257,7 +332,7 @@ export function SessionDateTimePicker({
     }
 
     const time = to24HourTime(meridiem, hour, minute);
-    const nextValue = buildDateTimeValue(selectedDay, time);
+    const nextValue = buildPickerValue(selectedDay, time, mode);
 
     if (new Date(nextValue).getTime() <= now.getTime()) {
       setTimeError("현재보다 미래 시간만 선택할 수 있습니다.");
@@ -270,11 +345,25 @@ export function SessionDateTimePicker({
   };
 
   const isDayDisabled = (day: Date) => {
-    if (day < firstSelectableDay) {
-      return true;
+    const normalizedDay = startOfDay(day);
+
+    if (effectiveDateBoundary === "future") {
+      if (normalizedDay < today) {
+        return true;
+      }
+
+      if (mode === "date-time") {
+        return getAvailableTimes(day, now).length === 0;
+      }
+
+      return false;
     }
 
-    return getAvailableTimes(day, now).length === 0;
+    if (effectiveDateBoundary === "past") {
+      return normalizedDay > today;
+    }
+
+    return false;
   };
 
   return (
@@ -293,11 +382,12 @@ export function SessionDateTimePicker({
           <Calendar className="h-4 w-4 shrink-0 text-slate-400" />
           {selectedLabel ? (
             <div className="min-w-0 truncate text-sm font-semibold text-slate-900">
-              {selectedLabel.date} {selectedLabel.time}
+              {selectedLabel.date}
+              {selectedLabel.time ? ` ${selectedLabel.time}` : ""}
             </div>
           ) : (
             <span className="text-sm font-medium text-slate-400">
-              날짜와 시간을 선택하세요
+              {placeholder ?? (mode === "date" ? "날짜를 선택하세요" : "날짜와 시간을 선택하세요")}
             </span>
           )}
         </div>
@@ -310,10 +400,16 @@ export function SessionDateTimePicker({
         <div
           className={cn(
             "absolute left-0 z-50 w-[min(40rem,calc(100vw-3rem))] border-2 border-slate-900 bg-white p-3 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]",
-            placement === "top" ? "bottom-full mb-2" : "top-full mt-2"
+            placement === "top" ? "bottom-full mb-2" : "top-full mt-2",
+            mode === "date" ? "max-w-[24rem]" : ""
           )}
         >
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_15rem]">
+          <div
+            className={cn(
+              "grid gap-3",
+              mode === "date" ? "grid-cols-1" : "lg:grid-cols-[minmax(0,1fr)_15rem]"
+            )}
+          >
             <div className="border-2 border-slate-100 bg-slate-50 p-3">
               <div className="max-h-[18.5rem] overflow-auto">
                 <DayPicker
@@ -323,6 +419,7 @@ export function SessionDateTimePicker({
                   disabled={isDayDisabled}
                   startMonth={visibleMonthStart}
                   endMonth={visibleMonthEnd}
+                  defaultMonth={defaultMonth}
                   navLayout="around"
                   showOutsideDays={false}
                   locale={ko}
@@ -357,108 +454,114 @@ export function SessionDateTimePicker({
               </div>
             </div>
 
-            <div className="border-2 border-slate-100 bg-white p-3">
-              <div className="mb-3">
-                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
-                  시간 입력
+            {mode === "date-time" ? (
+              <div className="border-2 border-slate-100 bg-white p-3">
+                <div className="mb-3">
+                  <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
+                    시간 입력
+                  </div>
                 </div>
+
+                {selectedDay ? (
+                  <div className="max-h-[18.5rem] space-y-3 overflow-y-auto pr-1">
+                    <div className="border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-slate-500">
+                      {formatDateLabel(selectedDay)}
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setMeridiem("AM")}
+                          className={cn(
+                            "h-10 border-2 text-sm font-bold transition-colors",
+                            meridiem === "AM"
+                              ? "border-slate-900 bg-slate-900 text-white"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-teal-500"
+                          )}
+                        >
+                          오전
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMeridiem("PM")}
+                          className={cn(
+                            "h-10 border-2 text-sm font-bold transition-colors",
+                            meridiem === "PM"
+                              ? "border-slate-900 bg-slate-900 text-white"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-teal-500"
+                          )}
+                        >
+                          오후
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-mono font-bold tracking-widest text-slate-400">
+                          시
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={2}
+                          value={hourInput}
+                          onChange={(event) => {
+                            setHourInput(event.target.value.replace(/\D/g, "").slice(0, 2));
+                            setTimeError("");
+                          }}
+                          placeholder="12"
+                          className="h-11 w-full rounded-none border-2 border-slate-200 bg-white px-3 text-center text-sm font-bold text-slate-900 focus:border-slate-900 focus:outline-none"
+                        />
+                      </div>
+                      <div className="pb-3 text-lg font-bold text-slate-400">:</div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-mono font-bold tracking-widest text-slate-400">
+                          분
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={2}
+                          value={minuteInput}
+                          onChange={(event) => {
+                            setMinuteInput(
+                              event.target.value.replace(/\D/g, "").slice(0, 2)
+                            );
+                            setTimeError("");
+                          }}
+                          placeholder="00"
+                          className="h-11 w-full rounded-none border-2 border-slate-200 bg-white px-3 text-center text-sm font-bold text-slate-900 focus:border-slate-900 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="text-[10px] font-mono tracking-widest text-slate-400">
+                      분은 10분 단위로 입력해주세요.
+                    </div>
+
+                    {timeError ? (
+                      <div className="text-[11px] font-medium text-red-600">
+                        {timeError}
+                      </div>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={applyManualTime}
+                      className="h-11 w-full border-2 border-slate-900 bg-teal-500 text-sm font-bold tracking-widest text-slate-950 transition-colors hover:bg-teal-400"
+                    >
+                      시간 적용
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex min-h-[10rem] items-center justify-center border border-dashed border-slate-200 bg-slate-50 px-4 text-center text-[11px] font-mono uppercase tracking-widest text-slate-400">
+                    먼저 날짜를 선택해주세요
+                  </div>
+                )}
               </div>
-
-              {selectedDay ? (
-                <div className="max-h-[18.5rem] space-y-3 overflow-y-auto pr-1">
-                  <div className="border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-slate-500">
-                    {formatDateLabel(selectedDay)}
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setMeridiem("AM")}
-                        className={cn(
-                          "h-10 border-2 text-sm font-bold transition-colors",
-                          meridiem === "AM"
-                            ? "border-slate-900 bg-slate-900 text-white"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-teal-500"
-                        )}
-                      >
-                        오전
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMeridiem("PM")}
-                        className={cn(
-                          "h-10 border-2 text-sm font-bold transition-colors",
-                          meridiem === "PM"
-                            ? "border-slate-900 bg-slate-900 text-white"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-teal-500"
-                        )}
-                      >
-                        오후
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-mono font-bold tracking-widest text-slate-400">
-                        시
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={2}
-                        value={hourInput}
-                        onChange={(event) => {
-                          setHourInput(event.target.value.replace(/\D/g, "").slice(0, 2));
-                          setTimeError("");
-                        }}
-                        placeholder="12"
-                        className="h-11 w-full rounded-none border-2 border-slate-200 bg-white px-3 text-center text-sm font-bold text-slate-900 focus:border-slate-900 focus:outline-none"
-                      />
-                    </div>
-                    <div className="pb-3 text-lg font-bold text-slate-400">:</div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-mono font-bold tracking-widest text-slate-400">
-                        분
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={2}
-                        value={minuteInput}
-                        onChange={(event) => {
-                          setMinuteInput(event.target.value.replace(/\D/g, "").slice(0, 2));
-                          setTimeError("");
-                        }}
-                        placeholder="00"
-                        className="h-11 w-full rounded-none border-2 border-slate-200 bg-white px-3 text-center text-sm font-bold text-slate-900 focus:border-slate-900 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="text-[10px] font-mono tracking-widest text-slate-400">
-                    분은 10분 단위로 입력해주세요.
-                  </div>
-
-                  {timeError ? (
-                    <div className="text-[11px] font-medium text-red-600">{timeError}</div>
-                  ) : null}
-
-                  <button
-                    type="button"
-                    onClick={applyManualTime}
-                    className="h-11 w-full border-2 border-slate-900 bg-teal-500 text-sm font-bold tracking-widest text-slate-950 transition-colors hover:bg-teal-400"
-                  >
-                    시간 적용
-                  </button>
-                </div>
-              ) : (
-                <div className="flex min-h-[10rem] items-center justify-center border border-dashed border-slate-200 bg-slate-50 px-4 text-center text-[11px] font-mono uppercase tracking-widest text-slate-400">
-                  먼저 날짜를 선택해주세요
-                </div>
-              )}
-            </div>
+            ) : null}
           </div>
         </div>
       )}

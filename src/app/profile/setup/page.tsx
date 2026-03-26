@@ -4,12 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, MapPin, UserRound } from "lucide-react";
 import PageShell from "@/components/layout/PageShell";
+import { SessionDateTimePicker } from "@/components/ui/session-date-time-picker";
+import { normalizeReturnTo } from "@/app/auth-page-utils";
 import {
   District,
   Gender,
   Province,
   buildCreateProfilePayload,
   createUserProfile,
+  getCurrentIdentitySession,
   getDistricts,
   getProfileDefaults,
   getProvinces,
@@ -46,6 +49,7 @@ export default function ProfileSetupPage() {
   const [provinces, setProvinces] = useState<Province[]>([]);
   const [districts, setDistricts] = useState<District[]>([]);
   const [isLoadingDistricts, setIsLoadingDistricts] = useState(false);
+  const [completionRedirect, setCompletionRedirect] = useState("/profile");
 
   const handleProvinceChange = (provinceId: string) => {
     setDistricts([]);
@@ -83,12 +87,21 @@ export default function ProfileSetupPage() {
   useEffect(() => {
     if (!isLoading && isLoggedIn) {
       const loadInitialData = async () => {
-        const [defaults, nextProvinces] = await Promise.all([
+        const [defaults, nextProvinces, session] = await Promise.all([
           getProfileDefaults(),
           getProvinces(),
+          getCurrentIdentitySession().catch(() => null),
         ]);
 
         setProvinces(nextProvinces);
+
+        const nextReturnTo =
+          session?.hasSession && session.returnTo
+            ? normalizeReturnTo(session.returnTo)
+            : "/profile";
+        setCompletionRedirect(
+          nextReturnTo === "/profile/setup" ? "/profile" : nextReturnTo
+        );
 
         if (defaults?.hasSuggestedNickname && defaults.suggestedNickname) {
           setForm((prev) => ({
@@ -161,7 +174,7 @@ export default function ProfileSetupPage() {
     }
 
     await refetch();
-    router.push("/profile");
+    router.replace(completionRedirect);
   };
 
   if (isLoading) {
@@ -318,13 +331,15 @@ export default function ProfileSetupPage() {
                   <label className="text-[11px] font-mono font-bold uppercase tracking-widest text-zinc-300">
                     Birth Date *
                   </label>
-                  <input
+                  <SessionDateTimePicker
                     value={form.birthDate}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, birthDate: event.target.value }))
+                    onChange={(nextValue) =>
+                      setForm((prev) => ({ ...prev, birthDate: nextValue }))
                     }
-                    className="w-full rounded-none border-2 border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-white placeholder:text-zinc-600 focus:border-emerald-500 focus:outline-none"
-                    placeholder="YYYY-MM-DD"
+                    mode="date"
+                    dateBoundary="past"
+                    error={Boolean(form.birthDate) ? Boolean(validationError.includes("생년월일")) : false}
+                    placeholder="생년월일을 선택하세요"
                   />
                 </div>
 

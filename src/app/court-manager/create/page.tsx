@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { SessionDateTimePicker } from "@/components/ui/session-date-time-picker";
 import { useAuth } from "@/hooks/useAuth";
 import { createFreeGame, Grade } from "@/lib/game";
+import { validateParticipantName } from "@/lib/participant";
 import { searchPlaces, type PlaceSearchResult } from "@/lib/place";
 import { pushRecentGameId } from "@/lib/recent-games";
 
@@ -379,7 +380,10 @@ export default function CreateFreeGamePage() {
   const addParticipant = (participantName = newParticipant.name) => {
     const trimmedParticipantName = participantName.trim();
 
-    if (!trimmedParticipantName) {
+    const participantNameError = validateParticipantName(trimmedParticipantName);
+    if (participantNameError) {
+      setSubmitError(participantNameError);
+      setSubmitErrorField("participants");
       return;
     }
 
@@ -780,10 +784,9 @@ export default function CreateFreeGamePage() {
                               {location || "장소를 선택해주세요"}
                             </div>
                           </button>
-                          <Button
+                          <button
                             type="button"
-                            variant="outline"
-                            className="h-14 shrink-0 rounded-none border-2 border-slate-900 px-3 text-[11px] font-mono font-bold uppercase tracking-widest text-slate-900"
+                            className="flex h-14 shrink-0 items-center justify-center rounded-none border-2 border-slate-900 bg-white px-4 text-[11px] font-mono font-bold uppercase tracking-widest text-slate-900 transition-colors hover:bg-slate-50"
                             onClick={() => {
                               setLocationSearchError("");
                               setLocationResults([]);
@@ -793,7 +796,7 @@ export default function CreateFreeGamePage() {
                           >
                             <Search className="mr-2 h-4 w-4" />
                             장소 검색
-                          </Button>
+                          </button>
                         </div>
 
                         {locationSearchError ? (
@@ -897,14 +900,23 @@ export default function CreateFreeGamePage() {
                   <input
                     type="text"
                     placeholder="이름"
-                    className="flex-1 rounded-none border-2 border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium transition-colors focus:border-slate-900 focus:bg-white focus:outline-none"
+                    className={`flex-1 rounded-none border-2 bg-slate-50 px-4 py-3 text-sm font-medium transition-colors focus:bg-white focus:outline-none ${
+                      submitErrorField === "participants"
+                        ? "border-red-300 focus:border-red-500"
+                        : "border-slate-200 focus:border-slate-900"
+                    }`}
                     value={newParticipant.name}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      if (submitErrorField === "participants") {
+                        setSubmitError("");
+                        setSubmitErrorField(null);
+                      }
+
                       setNewParticipant((prev) => ({
                         ...prev,
                         name: event.target.value,
-                      }))
-                    }
+                      }));
+                    }}
                     onCompositionStart={() => {
                       isParticipantNameComposingRef.current = true;
                       submitParticipantAfterCompositionRef.current = false;
