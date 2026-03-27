@@ -1,37 +1,32 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Outfit } from "next/font/google";
+import { AppProviders } from "./providers";
 import "./globals.css";
-import { ThemeProvider } from "@/contexts/ThemeContext";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
   subsets: ["latin"],
+  variable: "--font-body",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const outfit = Outfit({
   subsets: ["latin"],
+  variable: "--font-heading",
 });
 
 export const metadata: Metadata = {
-  title: "Drive - Badminton Tournament Management",
-  description: "Badminton tournament management made easy.",
-  icons: {
-    icon: "/drive-favicon.svg",
-  },
+  title: "RallyOn | Join Rally, Stay On Rally",
+  description: "Korean badminton community and tournament platform",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="ko" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <ThemeProvider>{children}</ThemeProvider>
+    <html lang="ko" className={`${inter.variable} ${outfit.variable}`}>
+      <body className="bg-slate-50 font-sans text-slate-900 antialiased selection:bg-teal-200 selection:text-teal-900">
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   );
