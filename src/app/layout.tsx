@@ -1,53 +1,32 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Outfit } from "next/font/google";
+import { AppProviders } from "./providers";
 import "./globals.css";
-import { ThemeProvider } from "@/contexts/ThemeContext";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
   subsets: ["latin"],
+  variable: "--font-body",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const outfit = Outfit({
   subsets: ["latin"],
+  variable: "--font-heading",
 });
 
 export const metadata: Metadata = {
-  title: "RallyOn - Badminton Tournament Management",
-  description: "RallyOn으로 배드민턴 대회 운영을 더 간편하게 관리하세요.",
-  icons: {
-    icon: "/rallyon-favicon.svg",
-  },
+  title: "RallyOn | Join Rally, Stay On Rally",
+  description: "Korean badminton community and tournament platform",
 };
-
-const themeInitScript = `
-(() => {
-  try {
-    const THEME_KEY = "rallyon-theme";
-    const LEGACY_THEME_KEY = "drive-theme";
-    const savedTheme = localStorage.getItem(THEME_KEY);
-    const legacyTheme = localStorage.getItem(LEGACY_THEME_KEY);
-    const theme = savedTheme ?? legacyTheme ??
-      (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-
-    document.documentElement.classList.toggle("dark", theme === "dark");
-  } catch {}
-})();
-`;
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="ko" suppressHydrationWarning>
-      <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <ThemeProvider>{children}</ThemeProvider>
+    <html lang="ko" className={`${inter.variable} ${outfit.variable}`}>
+      <body className="bg-slate-50 font-sans text-slate-900 antialiased selection:bg-teal-200 selection:text-teal-900">
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   );
