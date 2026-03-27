@@ -1,0 +1,10 @@
+<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(16 16) scale(0.9) translate(-14 -16)">
+    <path d="M-1 28 L11 4 H17 L5 28 H-1 Z" fill="#10B981" />
+    <!-- 중앙 너비: 13 - 7 = 6, 25 - 19 = 6 -->
+    <path d="M 7 28 L 19 4 H 25 L 13 28 H 7 Z" fill="#FAFAFA" />
+    <!-- 우측 깃털: 원(반지름 3, cy=7)에 딱 붙지 않도록 1단위 여백을 주고 y=11까지 연장 -->
+    <path d="M 15 28 L 23.5 11 H 29.5 L 21 28 Z" fill="#10B981" />
+    <circle cx="28" cy="7" r="3" fill="#10B981" />
+  </g>
+</svg>
