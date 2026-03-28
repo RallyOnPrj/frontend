@@ -4,6 +4,7 @@ import {
   buildAuthPageUrl,
   getAuthUrl,
   normalizeReturnTo,
+  resolveRequestHost,
 } from "../auth-page-utils";
 import SignupPageClient from "./signup-page-client";
 
@@ -19,7 +20,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
   const returnTo = normalizeReturnTo(params?.returnTo);
   const errorCode = params?.error;
   const headerStore = await headers();
-  const host = (headerStore.get("host") || "").split(":")[0];
+  const host = resolveRequestHost(headerStore);
   const authHost = new URL(getAuthUrl()).host;
 
   if (host !== authHost) {
