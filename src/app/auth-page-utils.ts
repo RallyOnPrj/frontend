@@ -17,9 +17,3 @@ export function buildAuthPageUrl(returnTo: string, screen: AuthScreen) {
   url.searchParams.set("returnTo", returnTo);
   return url.toString();
 }
-
-export function resolveRequestHost(headerStore: Headers) {
-  const forwardedHost = headerStore.get("x-forwarded-host");
-  const host = forwardedHost || headerStore.get("host") || "";
-  return host.split(",")[0].trim().split(":")[0];
-}
