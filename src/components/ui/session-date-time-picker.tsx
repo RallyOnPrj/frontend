@@ -7,7 +7,6 @@ import { Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TIME_STEP_MINUTES = 10;
-type Meridiem = "AM" | "PM";
 type SessionDateTimePickerMode = "date-time" | "date";
 type DateBoundary = "future" | "past" | "any";
 
@@ -102,40 +101,52 @@ function formatDateLabel(day: Date) {
 
 function formatTimeLabel(time: string) {
   const [hours, minutes] = time.split(":").map(Number);
-  const period = hours >= 12 ? "오후" : "오전";
-  const hour12 = hours % 12 || 12;
-  return `${period} ${pad(hour12)}:${pad(minutes)}`;
+  return `${pad(hours)}:${pad(minutes)}`;
 }
 
-function getTimeDraft(time: string): {
-  meridiem: Meridiem;
-  hour: string;
-  minute: string;
-} {
+function getTimeDraft(time: string): { hour: string; minute: string } {
   if (!time) {
     return {
-      meridiem: "AM",
       hour: "",
       minute: "",
     };
   }
 
   const [hours, minutes] = time.split(":").map(Number);
-  const meridiem: Meridiem = hours >= 12 ? "PM" : "AM";
-  const hour12 = hours % 12 || 12;
 
   return {
-    meridiem,
-    hour: pad(hour12),
+    hour: pad(hours),
     minute: pad(minutes),
   };
 }
 
-function to24HourTime(meridiem: Meridiem, hour: number, minute: number) {
-  const normalizedHour =
-    meridiem === "AM" ? (hour === 12 ? 0 : hour) : hour === 12 ? 12 : hour + 12;
+function sanitizeHourInput(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 2);
+  if (!digits) {
+    return "";
+  }
 
-  return `${pad(normalizedHour)}:${pad(minute)}`;
+  if (digits.length === 1) {
+    return digits;
+  }
+
+  return Number(digits) <= 23 ? digits : digits.slice(0, 1);
+}
+
+function sanitizeMinuteInput(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 2);
+  if (!digits) {
+    return "";
+  }
+
+  if (digits.length === 1) {
+    return Number(digits) <= 5 ? digits : "";
+  }
+
+  const minute = Number(digits);
+  return minute <= 59 && minute % TIME_STEP_MINUTES === 0
+    ? digits
+    : digits.slice(0, 1);
 }
 
 function formatPickerLabel(value: string, mode: SessionDateTimePickerMode) {
@@ -210,7 +221,6 @@ export function SessionDateTimePicker({
   const initialDraft = getTimeDraft(parsePickerValue(value, mode).time);
   const [isOpen, setIsOpen] = useState(false);
   const [placement, setPlacement] = useState<"bottom" | "top">("bottom");
-  const [meridiem, setMeridiem] = useState<Meridiem>(initialDraft.meridiem);
   const [hourInput, setHourInput] = useState(initialDraft.hour);
   const [minuteInput, setMinuteInput] = useState(initialDraft.minute);
   const [timeError, setTimeError] = useState("");
@@ -237,7 +247,6 @@ export function SessionDateTimePicker({
 
   const syncDrafts = (time: string) => {
     const draft = getTimeDraft(time);
-    setMeridiem(draft.meridiem);
     setHourInput(draft.hour);
     setMinuteInput(draft.minute);
     setTimeError("");
@@ -311,14 +320,19 @@ export function SessionDateTimePicker({
       return;
     }
 
+    if (!hourInput || !minuteInput) {
+      setTimeError("시간을 올바르게 입력해주세요.");
+      return;
+    }
+
     const hour = Number(hourInput);
     const minute = Number(minuteInput);
 
     if (
       Number.isNaN(hour) ||
       Number.isNaN(minute) ||
-      hour < 1 ||
-      hour > 12 ||
+      hour < 0 ||
+      hour > 23 ||
       minute < 0 ||
       minute > 59
     ) {
@@ -331,10 +345,19 @@ export function SessionDateTimePicker({
       return;
     }
 
-    const time = to24HourTime(meridiem, hour, minute);
+    const time = `${pad(hour)}:${pad(minute)}`;
     const nextValue = buildPickerValue(selectedDay, time, mode);
+    const candidate = new Date(
+      selectedDay.getFullYear(),
+      selectedDay.getMonth(),
+      selectedDay.getDate(),
+      hour,
+      minute,
+      0,
+      0
+    );
 
-    if (new Date(nextValue).getTime() <= now.getTime()) {
+    if (candidate.getTime() <= now.getTime()) {
       setTimeError("현재보다 미래 시간만 선택할 수 있습니다.");
       return;
     }
@@ -468,35 +491,6 @@ export function SessionDateTimePicker({
                       {formatDateLabel(selectedDay)}
                     </div>
 
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setMeridiem("AM")}
-                          className={cn(
-                            "h-10 border-2 text-sm font-bold transition-colors",
-                            meridiem === "AM"
-                              ? "border-slate-900 bg-slate-900 text-white"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-teal-500"
-                          )}
-                        >
-                          오전
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setMeridiem("PM")}
-                          className={cn(
-                            "h-10 border-2 text-sm font-bold transition-colors",
-                            meridiem === "PM"
-                              ? "border-slate-900 bg-slate-900 text-white"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-teal-500"
-                          )}
-                        >
-                          오후
-                        </button>
-                      </div>
-                    </div>
-
                     <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-mono font-bold tracking-widest text-slate-400">
@@ -508,10 +502,10 @@ export function SessionDateTimePicker({
                           maxLength={2}
                           value={hourInput}
                           onChange={(event) => {
-                            setHourInput(event.target.value.replace(/\D/g, "").slice(0, 2));
+                            setHourInput(sanitizeHourInput(event.target.value));
                             setTimeError("");
                           }}
-                          placeholder="12"
+                          placeholder="15"
                           className="h-11 w-full rounded-none border-2 border-slate-200 bg-white px-3 text-center text-sm font-bold text-slate-900 focus:border-slate-900 focus:outline-none"
                         />
                       </div>
@@ -526,19 +520,17 @@ export function SessionDateTimePicker({
                           maxLength={2}
                           value={minuteInput}
                           onChange={(event) => {
-                            setMinuteInput(
-                              event.target.value.replace(/\D/g, "").slice(0, 2)
-                            );
+                            setMinuteInput(sanitizeMinuteInput(event.target.value));
                             setTimeError("");
                           }}
-                          placeholder="00"
+                          placeholder="10"
                           className="h-11 w-full rounded-none border-2 border-slate-200 bg-white px-3 text-center text-sm font-bold text-slate-900 focus:border-slate-900 focus:outline-none"
                         />
                       </div>
                     </div>
 
                     <div className="text-[10px] font-mono tracking-widest text-slate-400">
-                      분은 10분 단위로 입력해주세요.
+                      24시간 형식으로 입력하고 분은 10분 단위를 사용해주세요.
                     </div>
 
                     {timeError ? (
