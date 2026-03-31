@@ -14,9 +14,56 @@ import { motion } from "motion/react";
 import PageShell from "@/components/layout/PageShell";
 import { Button } from "@/components/ui/button";
 import { TagChip } from "@/components/ui/tag-chip";
-import { UserProfile, getMyProfile } from "@/lib/auth";
+import { AuthProvider, UserProfile, getMyProfile } from "@/lib/auth";
 import { formatGradeLabel } from "@/lib/grade";
 import { useAuth } from "@/hooks/useAuth";
+
+const PROVIDER_BADGES: Record<
+  Exclude<AuthProvider, "DUMMY">,
+  { label: string; src: string; className: string }
+> = {
+  APPLE: {
+    label: "Apple",
+    src: "/social/apple-logo.svg",
+    className: "bg-zinc-950",
+  },
+  GOOGLE: {
+    label: "Google",
+    src: "/social/google-g.svg",
+    className: "bg-white",
+  },
+  KAKAO: {
+    label: "Kakao",
+    src: "/social/kakao-symbol.svg",
+    className: "bg-[#FEE500]",
+  },
+};
+
+function SocialProviderBadge({
+  provider,
+}: {
+  provider?: AuthProvider | null;
+}) {
+  if (!provider || provider === "DUMMY") {
+    return null;
+  }
+
+  const badge = PROVIDER_BADGES[provider];
+
+  return (
+    <div
+      className={`absolute right-0 bottom-0 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white shadow-sm ${badge.className}`}
+    >
+      <Image
+        src={badge.src}
+        alt={`${badge.label} 로그인`}
+        width={16}
+        height={16}
+        className="h-4 w-4"
+      />
+    </div>
+  );
+}
 
 export default function ProfilePage() {
   const { user, isLoading, isLoggedIn } = useAuth();
@@ -141,15 +188,7 @@ export default function ProfilePage() {
                       <User className="h-12 w-12 text-zinc-400" />
                     )}
                   </div>
-                  <div className="absolute right-0 bottom-0 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#FEE500] shadow-sm">
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="h-4 w-4 fill-current text-zinc-950"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path d="M12 3c-5.523 0-10 3.49-10 7.8 0 2.76 1.83 5.18 4.6 6.5l-1.18 4.3c-.05.18.15.34.32.25l5.05-3.37c.39.05.79.08 1.21.08 5.523 0 10-3.49 10-7.8C22 6.49 17.523 3 12 3z" />
-                    </svg>
-                  </div>
+                  <SocialProviderBadge provider={user.provider} />
                 </div>
 
                 <h2 className="mb-1 text-2xl font-bold text-zinc-950">

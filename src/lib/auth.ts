@@ -31,6 +31,7 @@ export interface SessionUser {
   status: UserStatus;
   nickname?: string | null;
   profileImageUrl?: string | null;
+  provider?: AuthProvider | null;
 }
 
 export interface UserProfile {
