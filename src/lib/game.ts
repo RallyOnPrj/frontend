@@ -54,6 +54,8 @@ export interface Game {
   createdBy: string;
   matchRecordMode: MatchRecordMode;
   gradeType: GradeType;
+  scheduledAt?: string | null;
+  location?: string | null;
 }
 
 export interface PublicGameSummary {
@@ -90,6 +92,7 @@ export interface CreateGameRequest {
   roundCount: number;
   gradeType: GradeType;
   matchRecordMode?: MatchRecordMode;
+  scheduledAt: string;
   location?: string;
   managerIds?: string[];
   participants: CreateGameParticipant[];
@@ -100,6 +103,8 @@ export interface UpdateGameRequest {
   title?: string;
   matchRecordMode?: MatchRecordMode;
   gradeType?: GradeType;
+  scheduledAt?: string | null;
+  location?: string | null;
   managerIds?: string[];
 }
 
@@ -124,8 +129,10 @@ interface FreeGameDetailResponse {
   gradeType: GradeType;
   courtCount: number;
   roundCount: number;
-  organizerId: string;
+  organizerAccountId: string;
   shareCode: string;
+  scheduledAt?: string | null;
+  location?: string | null;
 }
 
 interface FreeGameParticipantResponse {
@@ -224,9 +231,11 @@ function mapGame(
     roundCount: detail.roundCount,
     status: detail.gameStatus,
     shareCode: detail.shareCode,
-    createdBy: detail.organizerId,
+    createdBy: detail.organizerAccountId,
     matchRecordMode: detail.matchRecordMode,
     gradeType: detail.gradeType,
+    scheduledAt: detail.scheduledAt ?? null,
+    location: detail.location ?? null,
     participants: participants.participants.map(mapParticipant),
     rounds: mapRounds(rounds.rounds),
   };
