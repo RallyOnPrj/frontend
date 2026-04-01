@@ -16,6 +16,21 @@ const outfit = Outfit({
 export const metadata: Metadata = {
   title: "RallyOn | Join Rally, Stay On Rally",
   description: "Korean badminton community and tournament platform",
+  icons: {
+    icon: [
+      {
+        url: "/rallyon-mark-light.svg",
+        type: "image/svg+xml",
+        media: "(prefers-color-scheme: light)",
+      },
+      {
+        url: "/rallyon-mark-dark.svg",
+        type: "image/svg+xml",
+        media: "(prefers-color-scheme: dark)",
+      },
+    ],
+    shortcut: "/rallyon-mark-light.svg",
+  },
 };
 
 export default function RootLayout({
